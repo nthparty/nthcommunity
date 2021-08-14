@@ -206,5 +206,24 @@ class recipient: # pylint: disable=R0903
 
         return contribution_keys
 
+    @staticmethod
+    def evaluate(collaborations): # pylint: disable=W0621
+        """
+        Evaluate a collaboration (represented as a collection of
+        collaborations from contributors) by submitting it to the
+        nth.community platform API.
+        """
+        response = requests.post(
+            "https://api.nth.community/",
+            data=json.dumps({
+                "evaluate": {
+                    "collaborations": collaborations
+                }
+            })
+        )
+        response_json = response.json()
+        collaboration = response_json["evaluate"] # pylint: disable=W0621
+        return collaboration
+
 if __name__ == "__main__":
     doctest.testmod()
