@@ -14,7 +14,7 @@ import oblivious
 import bcl
 
 # Maximum number of rows in a data set that can be contributed.
-CONTRIBUTION_MAX = 10000
+CONTRIBUTION_LENGTH_MAX = 10000
 
 class collaboration(dict):
     """
@@ -62,13 +62,24 @@ class table(collaboration):
     A contributed data set within a collaboration tree
     data structure.
     """
-    def __init__(self, value=None, contributor=None): # pylint: disable=W0621
+    def __init__(self, value=None, contributor=None, limit=None): # pylint: disable=W0621
         super().__init__(self)
         self["type"] = "table"
-        if value is not None:
-            self["value"] = value
         if contributor is not None:
             self["contributor"] = contributor
+        if limit is not None:
+            if limit > CONTRIBUTION_LENGTH_MAX:
+                raise ValueError(
+                    'maximum table length limit is ' + str(CONTRIBUTION_LENGTH_MAX)
+                )
+            self["limit"] = limit
+        if value is not None:
+            if len(value) > self.get("limit", CONTRIBUTION_LENGTH_MAX):
+                raise ValueError(
+                    'table length exceeds maximum of ' + \
+                    self.get("limit", CONTRIBUTION_LENGTH_MAX)
+                )
+            self["value"] = value
 
 class contributor(dict):
     """
@@ -106,6 +117,14 @@ class contributor(dict):
         scalar = oblivious.scalar.from_base64(material["scalar"])
 
         if c["type"] == "table":
+            # Ensure the contribution satisfies the length limit (both
+            # the universal one and the one specified in the collaboration).
+            if len(contribution) > c.get("limit", CONTRIBUTION_LENGTH_MAX):
+                raise ValueError(
+                    'contribution length exceeds maximum of ' + \
+                    c.get("limit", CONTRIBUTION_LENGTH_MAX)
+                )
+
             # Result is a new instance (not in-place modification of existing collaboration).
             t = table(contributor=c["contributor"])
             t["public_key"] = c["public_key"]
@@ -122,15 +141,19 @@ class contributor(dict):
                     ).to_base64()
                 ]
                 for row in contribution
-            ] + [
-                [
-                    bcl.asymmetric.encrypt(
-                        public_key,
-                        scalar * oblivious.point.hash(bytes([1]) + secrets.token_bytes(32))
-                    ).to_base64()
-                ]
-                for row in range(CONTRIBUTION_MAX - len(contribution))
             ]
+
+            # Add padding if an explicit contribution length limit was specified.
+            if "limit" in t:
+                t["value"].extend([
+                    [
+                        bcl.asymmetric.encrypt(
+                            public_key,
+                            scalar * oblivious.point.hash(bytes([1]) + secrets.token_bytes(32))
+                        ).to_base64()
+                    ]
+                    for row in range(t["limit"] - len(contribution))
+                ])
 
             # Return modified collaboration.
             return intersection(t)
@@ -142,9 +165,6 @@ class contributor(dict):
         """
         Encrypt a data set as a contribution to a collaboration.
         """
-        if len(contribution) > CONTRIBUTION_MAX:
-            raise ValueError("contribution length cannot exceed " + str(CONTRIBUTION_MAX))
-
         # Extract cryptographic material provided by recipient.
         material = collaboration["material"]
 
