@@ -1,6 +1,6 @@
 """Give users direct access to classes."""
 from nthcommunity.nthcommunity import\
     collaboration,\
-    count, intersect,\
+    count, intersection,\
     integer, table,\
-    contributor
+    contributor, recipient

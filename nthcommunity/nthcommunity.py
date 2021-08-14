@@ -5,8 +5,11 @@ data collaboration API and platform.
 """
 
 from __future__ import annotations
-import uuid
 import doctest
+import uuid
+import json
+import requests
+import oblivious
 
 class collaboration(dict):
     """
@@ -22,10 +25,10 @@ class count(collaboration):
         self.update({
             "type": "operation",
             "value": "count",
-            "arguments": arguments
+            "arguments": list(arguments)
         })
 
-class intersect(collaboration):
+class intersection(collaboration):
     """
     Collaboration tree node for the intersection operation.
     """
@@ -33,8 +36,8 @@ class intersect(collaboration):
         super().__init__(self)
         self.update({
             "type": "operation",
-            "value": "intersect",
-            "arguments": arguments
+            "value": "intersection",
+            "arguments": list(arguments)
         })
 
 class integer(collaboration):
@@ -64,7 +67,7 @@ class table(collaboration):
 
 class contributor(dict):
     """
-    Data structure for an individual data contributor
+    Data structure and methods for an individual data contributor
     within a collaboration.
     """
     def __init__(self, identifier=None):
@@ -73,6 +76,37 @@ class contributor(dict):
             "type": "contributor",
             "identifier": str(uuid.uuid4()) if identifier is None else identifier
         })
+
+class recipient: # pylint: disable=R0903
+    """
+    Methods for a collaboration result recipient.
+    """
+    @staticmethod
+    def generate(collaboration): # pylint: disable=W0621
+        """
+        Submit a collaboration via the nth.community platform
+        API to receive the set of contributor keys that can be
+        distributed to contributors.
+        """
+        response = requests.post(
+            "https://api.nth.community/",
+            data=json.dumps({
+                "generate": {
+                    "collaboration": collaboration
+                }
+            })
+        )
+        response_json = response.json()
+        contribution_keys = response_json["generate"]
+
+        # Add recipient-generated cryptographic material.
+        scalar = oblivious.scalar().to_base64()
+        for contribution_key in contribution_keys.values():
+            contribution_key["material"] = {
+                "scalar": scalar
+            }
+
+        return contribution_keys
 
 if __name__ == "__main__":
     doctest.testmod()

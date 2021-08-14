@@ -7,7 +7,10 @@ setup(
     name="nthcommunity",
     version="0.1.0",
     packages=["nthcommunity",],
-    install_requires=[],
+    install_requires=[
+        "requests~=2.26.0",
+        "oblivious~=2.3.0"
+    ],
     license="MIT",
     url="https://github.com/nthparty/nthcommunity",
     author="Andrei Lapets",
