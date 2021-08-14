@@ -9,7 +9,8 @@ setup(
     packages=["nthcommunity",],
     install_requires=[
         "requests~=2.26.0",
-        "oblivious~=2.3.0"
+        "oblivious~=2.3.0",
+        "bcl~=1.0.0"
     ],
     license="MIT",
     url="https://github.com/nthparty/nthcommunity",
