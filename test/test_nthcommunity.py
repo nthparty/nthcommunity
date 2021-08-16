@@ -7,6 +7,7 @@ platform API.
 
 import importlib
 import sys
+import base64
 import oblivious
 import unittest # pylint: disable=C0411
 
@@ -128,14 +129,32 @@ class Test_nthcommunity(unittest.TestCase):
         t = [[oblivious.point().to_base64()] for _ in range(200)]
 
         # Build a few collaborations (both supported and unsupported).
-        unsupported = nthcommunity.count(
+        unsupported = [
             nthcommunity.count(
+                nthcommunity.count(
+                    nthcommunity.table(
+                        contributor=nthcommunity.contributor(),
+                        limit=100
+                    )
+                )
+            ),
+            nthcommunity.intersection(
                 nthcommunity.table(
                     contributor=nthcommunity.contributor(),
                     limit=100
                 )
+            ),
+            nthcommunity.count(
+                nthcommunity.intersection(
+                    nthcommunity.intersection(
+                        nthcommunity.table(
+                            contributor=nthcommunity.contributor(),
+                            limit=100
+                        )
+                    )
+                )
             )
-        )
+        ]
         supported = nthcommunity.count(
             nthcommunity.intersection(
                 nthcommunity.table(
@@ -145,30 +164,24 @@ class Test_nthcommunity(unittest.TestCase):
             )
         )
 
-        # Generate contributor keys.
-        unsupported = list(nthcommunity.recipient.generate(unsupported).values())[0]
-        supported = list(nthcommunity.recipient.generate(supported).values())[0]
+        # Try to contribute to collaborations that have unsupported structures.
+        for c in unsupported:
+            c = list(nthcommunity.recipient.generate(c).values())[0]
+            self.assertRaises(
+                ValueError,
+                lambda c=c: nthcommunity.contributor.encrypt(c, t[:10])
+            )
 
-        # Try to contribute to an unsupported collaboration structures.
+        # Try to contribute to a collaboration with an invalid certificate.
+        unsupported[0]["certificate"] = base64.standard_b64encode(bytes([0])).decode()
         self.assertRaises(
-            ValueError,
-            lambda: nthcommunity.contributor.encrypt(unsupported, t[:10])
-        )
-        unsupported["value"] = "intersection"
-        self.assertRaises(
-            ValueError,
-            lambda: nthcommunity.contributor.encrypt(unsupported, t[:10])
-        )
-        unsupported["value"] = "count"
-        unsupported["arguments"][0]["value"] = "intersection"
-        unsupported["arguments"][0]["arguments"][0]["type"] = "operation"
-        self.assertRaises(
-            ValueError,
-            lambda: nthcommunity.contributor.encrypt(unsupported, t[:10])
+            RuntimeError,
+            lambda: nthcommunity.contributor.encrypt(unsupported[0], t[:10])
         )
 
         # Try to encrypt a contribution whose length exceeds what is
         # by the collaboration.
+        supported = list(nthcommunity.recipient.generate(supported).values())[0]
         self.assertRaises(
             ValueError,
             lambda: nthcommunity.contributor.encrypt(supported, t)

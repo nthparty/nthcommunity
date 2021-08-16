@@ -161,10 +161,31 @@ class contributor(dict):
         raise ValueError("cannot contribute to collaboration due to its structure")
 
     @staticmethod
+    def validate(collaboration): # pylint: disable=W0621
+        """
+        Validate the certificate within a collaboration obtained from
+        a recipient by submitting it to the nth.community platform API.
+        """
+        response = requests.post(
+            "https://api.nth.community/",
+            data=json.dumps({
+                "validate": {
+                    "collaboration": collaboration
+                }
+            })
+        )
+        response_json = response.json()
+        return response_json["validate"]
+
+    @staticmethod
     def encrypt(collaboration, contribution): # pylint: disable=W0621
         """
         Encrypt a data set as a contribution to a collaboration.
         """
+        # Validate the collaboration.
+        if not contributor.validate(collaboration):
+            raise RuntimeError('collaboration certificate is invalid')
+
         # Extract cryptographic material provided by recipient.
         material = collaboration["material"]
 
