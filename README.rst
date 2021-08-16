@@ -11,11 +11,15 @@ The library can be imported in the usual ways::
     import nthcommunity
     from nthcommunity import *
 
-Conventions
------------
+Testing and Conventions
+-----------------------
+All unit tests are executed and their coverage is measured when using `nose <https://nose.readthedocs.io/>`_ (see ``setup.cfg`` for configuration details)::
+
+    nosetests
+
 Style conventions are enforced using `Pylint <https://www.pylint.org/>`_::
 
-    pylint nthcommunity
+    pylint nthcommunity test/test_nthcommunity.py
 
 Contributions
 -------------

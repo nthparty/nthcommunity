@@ -77,7 +77,7 @@ class table(collaboration):
             if len(value) > self.get("limit", CONTRIBUTION_LENGTH_MAX):
                 raise ValueError(
                     'table length exceeds maximum of ' + \
-                    self.get("limit", CONTRIBUTION_LENGTH_MAX)
+                    str(self.get("limit", CONTRIBUTION_LENGTH_MAX))
                 )
             self["value"] = value
 
@@ -122,7 +122,7 @@ class contributor(dict):
             if len(contribution) > c.get("limit", CONTRIBUTION_LENGTH_MAX):
                 raise ValueError(
                     'contribution length exceeds maximum of ' + \
-                    c.get("limit", CONTRIBUTION_LENGTH_MAX)
+                    str(c.get("limit", CONTRIBUTION_LENGTH_MAX))
                 )
 
             # Result is a new instance (not in-place modification of existing collaboration).
@@ -144,7 +144,7 @@ class contributor(dict):
             ]
 
             # Add padding if an explicit contribution length limit was specified.
-            if "limit" in t:
+            if "limit" in c:
                 t["value"].extend([
                     [
                         bcl.asymmetric.encrypt(
@@ -152,7 +152,7 @@ class contributor(dict):
                             scalar * oblivious.point.hash(bytes([1]) + secrets.token_bytes(32))
                         ).to_base64()
                     ]
-                    for row in range(t["limit"] - len(contribution))
+                    for row in range(c["limit"] - len(contribution))
                 ])
 
             # Return modified collaboration.
@@ -226,4 +226,4 @@ class recipient: # pylint: disable=R0903
         return collaboration
 
 if __name__ == "__main__":
-    doctest.testmod()
+    doctest.testmod() # pragma: no cover
