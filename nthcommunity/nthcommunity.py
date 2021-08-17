@@ -86,7 +86,7 @@ class contributor(dict):
     Data structure and methods for an individual data contributor
     within a collaboration.
     """
-    def __init__(self, identifier=None):
+    def __init__(self: contributor, identifier=None):
         super().__init__(self)
         self.update({
             "type": "contributor",
@@ -160,8 +160,7 @@ class contributor(dict):
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 
-    @staticmethod
-    def validate(collaboration): # pylint: disable=W0621
+    def validate(self: contributor, collaboration): # pylint: disable=R0201,W0621
         """
         Validate the certificate within a collaboration obtained from
         a recipient by submitting it to the nth.community platform API.
@@ -177,13 +176,12 @@ class contributor(dict):
         response_json = response.json()
         return response_json["validate"]
 
-    @staticmethod
-    def encrypt(collaboration, contribution): # pylint: disable=W0621
+    def encrypt(self: contributor, collaboration, contribution): # pylint: disable=W0621
         """
         Encrypt a data set as a contribution to a collaboration.
         """
         # Validate the collaboration.
-        if not contributor.validate(collaboration):
+        if not self.validate(collaboration):
             raise RuntimeError('collaboration certificate is invalid')
 
         # Extract cryptographic material provided by recipient.
@@ -200,8 +198,10 @@ class recipient: # pylint: disable=R0903
     """
     Methods for a collaboration result recipient.
     """
-    @staticmethod
-    def generate(collaboration): # pylint: disable=W0621
+    def __init__(self: recipient):
+        pass
+
+    def generate(self: recipient, collaboration): # pylint: disable=R0201,W0621
         """
         Submit a collaboration via the nth.community platform
         API to receive the set of contributor keys that can be
@@ -227,8 +227,7 @@ class recipient: # pylint: disable=R0903
 
         return contribution_keys
 
-    @staticmethod
-    def evaluate(collaborations): # pylint: disable=W0621
+    def evaluate(self: recipient, collaborations): # pylint: disable=R0201,W0621
         """
         Evaluate a collaboration (represented as a collection of
         collaborations from contributors) by submitting it to the

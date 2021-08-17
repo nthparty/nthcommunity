@@ -101,16 +101,18 @@ class Test_nthcommunity(unittest.TestCase):
         )
 
         # Generate contributor keys.
-        cs = nthcommunity.recipient.generate(c)
+        contributors_ = [nthcommunity.contributor() for _ in range(2)]
+        recipient_ = nthcommunity.recipient()
+        cs = recipient_.generate(c)
 
         # Encrypt and contribute data.
         cs = {
-            id_: nthcommunity.contributor.encrypt(c_, t)
-            for ((id_, c_), t) in zip(cs.items(), [table_a, table_b])
+            id_: contributors_[i].encrypt(c_, t)
+            for (i, ((id_, c_), t)) in enumerate(zip(cs.items(), [table_a, table_b]))
         }
 
         # Evaluate the collaboration contributions to obtain a result.
-        result = nthcommunity.recipient.evaluate(cs)
+        result = recipient_.evaluate(cs)
         self.assertEqual(
             result,
             {
@@ -164,27 +166,31 @@ class Test_nthcommunity(unittest.TestCase):
             )
         )
 
+        # Create contributors and recipient.
+        contributor_ = nthcommunity.contributor()
+        recipient_ = nthcommunity.recipient()
+
         # Try to contribute to collaborations that have unsupported structures.
         for c in unsupported:
-            c = list(nthcommunity.recipient.generate(c).values())[0]
+            c = list(recipient_.generate(c).values())[0]
             self.assertRaises(
                 ValueError,
-                lambda c=c: nthcommunity.contributor.encrypt(c, t[:10])
+                lambda c=c: contributor_.encrypt(c, t[:10])
             )
 
         # Try to contribute to a collaboration with an invalid certificate.
         unsupported[0]["certificate"] = base64.standard_b64encode(bytes([0])).decode()
         self.assertRaises(
             RuntimeError,
-            lambda: nthcommunity.contributor.encrypt(unsupported[0], t[:10])
+            lambda: contributor_.encrypt(unsupported[0], t[:10])
         )
 
         # Try to encrypt a contribution whose length exceeds what is
         # by the collaboration.
-        supported = list(nthcommunity.recipient.generate(supported).values())[0]
+        supported = list(recipient_.generate(supported).values())[0]
         self.assertRaises(
             ValueError,
-            lambda: nthcommunity.contributor.encrypt(supported, t)
+            lambda: contributor_.encrypt(supported, t)
         )
 
 if __name__ == "__main__":
