@@ -129,8 +129,12 @@ class contributor(dict):
             t = table(contributor=c["contributor"])
             t["public_key"] = c["public_key"]
 
-            # Extract public key to use for encrypting scalar.
+            # Extract public key to use for encrypting the scalar and data
+            # for the service platform (vs. the recipient).
             public_key = bcl.public.from_base64(c["public_key"])
+
+            # Extract public key to use for encrypting data for the recipient.
+            public_key_recipient = bcl.public.from_base64(material["public"])
 
             # Add encrypted contribution.
             t["value"] = [
@@ -138,21 +142,36 @@ class contributor(dict):
                     bcl.asymmetric.encrypt(
                         public_key,
                         scalar * oblivious.point.hash(bytes([0]) + row[0].encode())
+                    ).to_base64(),
+                    bcl.asymmetric.encrypt(
+                        public_key,
+                        bcl.asymmetric.encrypt(
+                            public_key_recipient,
+                            row[0].encode()
+                        )
                     ).to_base64()
                 ]
                 for row in contribution
             ]
 
             # Add padding if an explicit contribution length limit was specified.
+            lengths = [len(row[0].encode()) for row in contribution]
             if "limit" in c:
                 t["value"].extend([
                     [
                         bcl.asymmetric.encrypt(
                             public_key,
                             scalar * oblivious.point.hash(bytes([1]) + secrets.token_bytes(32))
+                        ).to_base64(),
+                        bcl.asymmetric.encrypt(
+                            public_key,
+                            bcl.asymmetric.encrypt(
+                                public_key_recipient,
+                                secrets.token_bytes(lengths[i % len(lengths)])
+                            )
                         ).to_base64()
                     ]
-                    for row in range(c["limit"] - len(contribution))
+                    for i in range(c["limit"] - len(contribution))
                 ])
 
             # Return modified collaboration.
@@ -180,17 +199,21 @@ class contributor(dict):
         """
         Encrypt a data set as a contribution to a collaboration.
         """
+        c = collaboration
+
         # Validate the collaboration.
-        if not self.validate(collaboration):
+        if not self.validate(c):
             raise RuntimeError('collaboration certificate is invalid')
 
         # Extract cryptographic material provided by recipient.
-        material = collaboration["material"]
+        material = c["material"]
 
         # Encrypt data as necessitated by collaboration structure.
-        if collaboration["type"] == "operation":
-            if collaboration["value"] == "count":
-                return contributor._for_count(collaboration, contribution, material)
+        if c["type"] == "operation":
+            if c["value"] == "count":
+                return contributor._for_count(c, contribution, material)
+            if c["value"] == "intersection":
+                return contributor._for_intersection(c, contribution, material)
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 
@@ -199,7 +222,33 @@ class recipient: # pylint: disable=R0903
     Methods for a collaboration result recipient.
     """
     def __init__(self: recipient):
-        pass
+        self.secret = bcl.asymmetric.secret()
+        self.public = bcl.asymmetric.public(self.secret)
+
+    def _decrypt(self: recipient, collaboration): # pylint: disable=W0621
+        """
+        Decrypt the result of a collaboration (if it is necessary to do so).
+        """
+        c = collaboration
+
+        # Raw integer outputs do not need to be decrypted
+        if c["type"] == "integer":
+            return c
+
+        # Decrypt the contents of the table.
+        if c["type"] == "table":
+            c["value"] = [
+                [
+                    bcl.asymmetric.decrypt(
+                        self.secret,
+                        bcl.cipher.from_base64(row[0])
+                    ).decode('utf-8')
+                ]
+                for row in c["value"]
+            ]
+            return c
+
+        return None
 
     def generate(self: recipient, collaboration): # pylint: disable=R0201,W0621
         """
@@ -222,6 +271,7 @@ class recipient: # pylint: disable=R0903
         scalar = oblivious.scalar().to_base64()
         for contribution_key in contribution_keys.values():
             contribution_key["material"] = {
+                "public": self.public.to_base64(),
                 "scalar": scalar
             }
 
@@ -242,8 +292,9 @@ class recipient: # pylint: disable=R0903
             })
         )
         response_json = response.json()
-        collaboration = response_json["evaluate"] # pylint: disable=W0621
-        return collaboration
+        c = response_json["evaluate"] # pylint: disable=W0621
+        c = self._decrypt(c)
+        return c
 
 if __name__ == "__main__":
     doctest.testmod() # pragma: no cover

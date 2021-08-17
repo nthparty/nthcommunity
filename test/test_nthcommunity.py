@@ -90,9 +90,9 @@ class Test_nthcommunity(unittest.TestCase):
         """
         # Create simulated data tables.
         table_a = [[oblivious.point.hash(str(i).encode()).to_base64()] for i in range(0, 8)]
-        table_b = [[oblivious.point.hash(str(i).encode()).to_base64()]for i in range(4, 12)]
+        table_b = [[oblivious.point.hash(str(i).encode()).to_base64()] for i in range(4, 12)]
 
-        # Build a collaboration.
+        # Build a count-intersection collaboration.
         c = nthcommunity.count(
             nthcommunity.intersection(
                 nthcommunity.table(contributor=nthcommunity.contributor(), limit=10),
@@ -121,6 +121,28 @@ class Test_nthcommunity(unittest.TestCase):
             }
         )
 
+        # Build an intersection collaboration.
+        c = nthcommunity.intersection(
+            nthcommunity.table(contributor=nthcommunity.contributor(), limit=10),
+            nthcommunity.table(contributor=nthcommunity.contributor(), limit=10)
+        )
+
+        # Generate contributor keys.
+        cs = recipient_.generate(c)
+
+        # Encrypt and contribute data.
+        cs = {
+            id_: contributors_[i].encrypt(c_, t)
+            for (i, ((id_, c_), t)) in enumerate(zip(cs.items(), [table_a, table_b]))
+        }
+
+        # Evaluate the collaboration contributions to obtain a result.
+        result = recipient_.evaluate(cs)
+        self.assertEqual(
+            {row[0] for row in result["value"]},
+            {row[0] for row in table_a} & {row[0] for row in table_b}
+        )
+
     def test_collaboration_errors(self):
         """
         Confirm recipient and contributor class methods enforce
@@ -140,11 +162,9 @@ class Test_nthcommunity(unittest.TestCase):
                     )
                 )
             ),
-            nthcommunity.intersection(
-                nthcommunity.table(
-                    contributor=nthcommunity.contributor(),
-                    limit=100
-                )
+            nthcommunity.table(
+                contributor=nthcommunity.contributor(),
+                limit=100
             ),
             nthcommunity.count(
                 nthcommunity.intersection(
