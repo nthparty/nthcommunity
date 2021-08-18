@@ -148,7 +148,7 @@ class Test_nthcommunity(unittest.TestCase):
         Test recipient and contributor class methods using a
         collaboration workflow.
         """
-        # Create simulated data tables.
+        # Create simulated inputs.
         number_a = 123
         number_b = 456
 

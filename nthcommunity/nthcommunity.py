@@ -17,6 +17,96 @@ import bcl
 # Maximum number of rows in a data set that can be contributed.
 CONTRIBUTION_LENGTH_MAX = 10000
 
+class share:
+    """
+    Data structure for additive secret shares of an integer.
+    """
+    @staticmethod
+    def from_bytes(bs: bytes) -> share:
+        """
+        Convert a share instance represented as a bytes-like object
+        into a share object.
+        """
+        return share(
+            value=int.from_bytes(bs[1:], 'little'),
+            exponent=bs[0]
+        )
+
+    @staticmethod
+    def from_base64(s: str) -> share:
+        """
+        Convert a share instance represented as a Base64 encoding of
+        a bytes-like object into a share object.
+        """
+        return share.from_bytes(base64.standard_b64decode(s))
+
+    def __init__(self: share, value: int, exponent: int = 32):
+        self.value = value
+        self.exponent = exponent
+
+    def __add__(self: share, other: share) -> share:
+        """
+        Add two share instances (with base case support for
+        the Python `sum` operator).
+        """
+        if isinstance(other, int) and other == 0:
+            return self # pragma: no cover
+        if self.exponent == other.exponent:
+            return share(
+                (self.value + other.value) % (2 ** self.exponent),
+                self.exponent
+            )
+        return None # pragma: no cover
+
+    def __radd__(self: share, other: share) -> share:
+        """
+        Add two share instances (with base case support for
+        the Python `sum` operator).
+        """
+        if isinstance(other, int) and other == 0:
+            return self
+        return other + self # pragma: no cover
+
+    def to_int(self: share):
+        """
+        Obtain the integer value represented by a fully reconstructed
+        aggregate share (no checking is performed that a share is fully
+        reconstructed).
+        """
+        return self.value
+
+    def to_bytes(self: share):
+        """
+        Return this share object encoded as a bytes-like object.
+        """
+        return \
+            bytes([self.exponent]) + \
+            self.value.to_bytes(self.exponent // 8, 'little')
+
+    def to_base64(self: share): # pragma: no cover
+        """
+        Return this share instance as a Base64 string.
+        """
+        return base64.standard_b64encode(self.to_bytes()).decode('utf-8')
+
+def shares(value: int, quantity: int = 2, exponent: int = 32):
+    """
+    Convert an integer into the specified number of additive secret shares.
+    """
+    (ss, t) = ([], 0)
+    for _ in range(quantity - 1):
+        bs = secrets.token_bytes(exponent)
+        v = int.from_bytes(bs, 'little') % (2 ** exponent)
+        ss.append(share(v, exponent))
+        t = (t + v) % (2 ** exponent)
+    ss.append(
+        share(
+            (value + ((2 ** exponent) - t)) % (2 ** exponent),
+            exponent
+        )
+    )
+    return ss
+
 class collaboration(dict):
     """
     Tree data structure representing a data collaboration.
@@ -136,17 +226,9 @@ class contributor(dict):
             # Extract public key to use for encrypting data for the recipient.
             public_key_recipient = bcl.public.from_base64(material["public"])
 
-            mask = (int.from_bytes(secrets.token_bytes(32), 'little') % (2**128))
-            value = (contribution + mask) % (2**128)
-
-            value_enc = bcl.asymmetric.encrypt(
-                public_key_recipient,
-                int(value).to_bytes(32, 'little')
-            )
-            mask_enc = bcl.asymmetric.encrypt(
-                public_key,
-                int(mask).to_bytes(32, 'little')
-            )
+            (value, mask) = shares(contribution) # pylint: disable=W0632
+            value_enc = bcl.asymmetric.encrypt(public_key_recipient, value.to_bytes())
+            mask_enc = bcl.asymmetric.encrypt(public_key, mask.to_bytes())
 
             if c["type"] == "integer":
                 # Update argument collaboration tree with contribution.
@@ -294,11 +376,11 @@ class recipient: # pylint: disable=R0903
             if isinstance(c["value"], list):
                 s = 0
                 for v in c["value"][:1]:
-                    s = (s + int.from_bytes(base64.standard_b64decode(v), 'little')) % (2**128)
+                    s = s + share.from_base64(v)
                 for v in c["value"][1:]:
                     bs = bcl.asymmetric.decrypt(self.secret, bcl.cipher.from_base64(v))
-                    s = (s + int.from_bytes(bs, 'little')) % (2**128)
-                return integer(value=s)
+                    s = s + share.from_bytes(bs)
+                return integer(value=s.to_int())
 
         # Decrypt the contents of the table.
         if c["type"] == "table":
