@@ -1,9 +1,7 @@
-"""Python API for nth.community.
-
+"""
 Python library for the nth.community secure, privacy-preserving
 data collaboration API and platform.
 """
-
 from __future__ import annotations
 import doctest
 import base64
@@ -115,8 +113,20 @@ class collaboration(dict):
 class count(collaboration):
     """
     Collaboration tree node for the count operation.
+
+    >>> count(integer(123))
+    Traceback (most recent call last):
+      ...
+    TypeError: count operation must be applied to a single intersection collaboration
     """
-    def __init__(self, *arguments):
+    def __init__(self, *arguments, _internal=False):
+        if not _internal and (
+            len(arguments) != 1 or not isinstance(arguments[0], intersection)
+        ):
+            raise TypeError(
+                "count operation must be applied to a single intersection collaboration"
+            )
+
         super().__init__(self)
         self.update({
             "type": "operation",
@@ -127,8 +137,22 @@ class count(collaboration):
 class summation(collaboration):
     """
     Collaboration tree node for the summation operation.
+
+    >>> summation(integer(123))
+    Traceback (most recent call last):
+      ...
+    TypeError: summation operation must be applied to two or more integers
     """
-    def __init__(self, *arguments):
+    def __init__(self, *arguments, _internal=False):
+        if not _internal and (
+            len(arguments) < 2 or not (
+                all(isinstance(argument, integer) for argument in arguments)
+            )
+        ):
+            raise TypeError(
+                "summation operation must be applied to two or more integers"
+            )
+
         super().__init__(self)
         self.update({
             "type": "operation",
@@ -139,8 +163,22 @@ class summation(collaboration):
 class intersection(collaboration):
     """
     Collaboration tree node for the intersection operation.
+
+    >>> intersection(table())
+    Traceback (most recent call last):
+      ...
+    TypeError: intersection operation must be applied to two or more tables
     """
-    def __init__(self, *arguments):
+    def __init__(self, *arguments, _internal=False):
+        if not _internal and (
+            len(arguments) < 2 or not (
+                all(isinstance(argument, table) for argument in arguments)
+            )
+        ):
+            raise TypeError(
+                "intersection operation must be applied to two or more tables"
+            )
+
         super().__init__(self)
         self.update({
             "type": "operation",
@@ -152,8 +190,22 @@ class integer(collaboration):
     """
     A contributed data set within a collaboration tree
     data structure.
+
+    >>> integer(-123)
+    Traceback (most recent call last):
+      ...
+    ValueError: integer value must be a non-negative 32-bit integer
     """
-    def __init__(self, value=None, contributor=None): # pylint: disable=W0621
+    def __init__(self, value=None, contributor=None, _internal=False): # pylint: disable=W0621
+        if not _internal and (
+            value is not None and not (
+                isinstance(value, int) and 0 <= value < 2**32
+            )
+        ):
+            raise ValueError(
+                "integer value must be a non-negative 32-bit integer"
+            )
+
         super().__init__(self)
         self["type"] = "integer"
         if value is not None:
@@ -165,8 +217,28 @@ class table(collaboration):
     """
     A contributed data set within a collaboration tree
     data structure.
+
+    >>> table(['a', 'b', 'c'])
+    Traceback (most recent call last):
+      ...
+    ValueError: table value must be a list of single-item lists, each containing a string
     """
-    def __init__(self, value=None, contributor=None, limit=None): # pylint: disable=W0621
+    def __init__(
+            self, value=None, contributor=None, limit=None, # pylint: disable=W0621
+            _internal=False
+        ):
+        if not _internal and (
+            value is not None and not (
+                isinstance(value, list) and all(
+                    isinstance(row, list) and len(row) == 1 and isinstance(row[0], str)
+                    for row in value
+                )
+            )
+        ):
+            raise ValueError(
+                "table value must be a list of single-item lists, each containing a string"
+            )
+
         super().__init__(self)
         self["type"] = "table"
         if contributor is not None:
@@ -237,9 +309,10 @@ class contributor(dict):
                     value=[
                         value_enc.to_base64(),
                         mask_enc.to_base64()
-                    ]
+                    ],
+                    _internal=True
                 )
-                return summation(i)
+                return summation(i, _internal=True)
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 
@@ -311,7 +384,7 @@ class contributor(dict):
                 ])
 
             # Return modified collaboration.
-            return intersection(t)
+            return intersection(t, _internal=True)
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 

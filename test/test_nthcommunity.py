@@ -4,7 +4,6 @@ Test suite with functional unit tests for all classes and
 methods, including direct interaction with the nth.community
 platform API.
 """
-
 import importlib
 import sys
 import base64
@@ -60,7 +59,8 @@ class Test_nthcommunity(unittest.TestCase):
             value=[
                 []
                 for _ in range(CONTRIBUTION_LENGTH_MAX)
-            ]
+            ],
+            _internal=True
         )
         self.assertTrue(isinstance(c, nthcommunity.table))
 
@@ -188,15 +188,32 @@ class Test_nthcommunity(unittest.TestCase):
         # Create simulated data tables.
         t = [[oblivious.point().to_base64()] for _ in range(200)]
 
-        # Build a few collaborations (both supported and unsupported).
-        unsupported = [
+        # Build a structurally permitted collaboration.
+        permitted = nthcommunity.count(
+            nthcommunity.intersection(
+                nthcommunity.table(
+                    contributor=nthcommunity.contributor(),
+                    limit=100
+                ),
+                nthcommunity.table(
+                    contributor=nthcommunity.contributor(),
+                    limit=100
+                )
+            )
+        )
+
+        # Build some collaborations that are not permitted according to their
+        # structure. Note that some of these are only possible to construct
+        # by overriding type checking within the collaboration constructors.
+        unpermitted = [
             nthcommunity.count(
                 nthcommunity.count(
-                    nthcommunity.table(
-                        contributor=nthcommunity.contributor(),
-                        limit=100
+                    nthcommunity.intersection(
+                        nthcommunity.table(contributor=nthcommunity.contributor()),
+                        nthcommunity.table(contributor=nthcommunity.contributor())
                     )
-                )
+                ),
+                _internal=True
             ),
             nthcommunity.table(
                 contributor=nthcommunity.contributor(),
@@ -204,36 +221,26 @@ class Test_nthcommunity(unittest.TestCase):
             ),
             nthcommunity.summation(
                 nthcommunity.table(
-                    contributor=nthcommunity.contributor(),
-                    limit=100
-                )
+                    contributor=nthcommunity.contributor()
+                ),
+                nthcommunity.integer(contributor=nthcommunity.contributor()),
+                _internal=True
             ),
-            nthcommunity.count(
+            nthcommunity.intersection(
                 nthcommunity.intersection(
-                    nthcommunity.intersection(
-                        nthcommunity.table(
-                            contributor=nthcommunity.contributor(),
-                            limit=100
-                        )
-                    )
-                )
+                    nthcommunity.table(contributor=nthcommunity.contributor()),
+                    nthcommunity.table(contributor=nthcommunity.contributor())
+                ),
+                _internal=True
             )
         ]
-        supported = nthcommunity.count(
-            nthcommunity.intersection(
-                nthcommunity.table(
-                    contributor=nthcommunity.contributor(),
-                    limit=100
-                )
-            )
-        )
 
         # Create contributors and recipient.
         contributor_ = nthcommunity.contributor()
         recipient_ = nthcommunity.recipient()
 
-        # Try to contribute to collaborations that have unsupported structures.
-        for c in unsupported:
+        # Try to contribute to collaborations that have unpermitted structures.
+        for c in unpermitted:
             c = list(recipient_.generate(c).values())[0]
             self.assertRaises(
                 ValueError,
@@ -241,18 +248,18 @@ class Test_nthcommunity(unittest.TestCase):
             )
 
         # Try to contribute to a collaboration with an invalid certificate.
-        unsupported[0]["certificate"] = base64.standard_b64encode(bytes([0])).decode()
+        unpermitted[0]["certificate"] = base64.standard_b64encode(bytes([0])).decode()
         self.assertRaises(
             RuntimeError,
-            lambda: contributor_.encrypt(unsupported[0], t[:10])
+            lambda: contributor_.encrypt(unpermitted[0], t[:10])
         )
 
         # Try to encrypt a contribution whose length exceeds what is
         # by the collaboration.
-        supported = list(recipient_.generate(supported).values())[0]
+        permitted = list(recipient_.generate(permitted).values())[0]
         self.assertRaises(
             ValueError,
-            lambda: contributor_.encrypt(supported, t)
+            lambda: contributor_.encrypt(permitted, t)
         )
 
 if __name__ == "__main__":
