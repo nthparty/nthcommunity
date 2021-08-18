@@ -25,7 +25,7 @@ def api_exported():
     """
     return {
         'collaboration',
-        'count', 'intersection',
+        'count', 'intersection', 'summation',
         'integer', 'table',
         'contributor', 'recipient'
     }
@@ -143,6 +143,42 @@ class Test_nthcommunity(unittest.TestCase):
             {row[0] for row in table_a} & {row[0] for row in table_b}
         )
 
+    def test_collaboration_summation(self):
+        """
+        Test recipient and contributor class methods using a
+        collaboration workflow.
+        """
+        # Create simulated data tables.
+        number_a = 123
+        number_b = 456
+
+        # Build a summation collaboration.
+        c = nthcommunity.summation(
+            nthcommunity.integer(contributor=nthcommunity.contributor()),
+            nthcommunity.integer(contributor=nthcommunity.contributor())
+        )
+
+        # Generate contributor keys.
+        contributors_ = [nthcommunity.contributor() for _ in range(2)]
+        recipient_ = nthcommunity.recipient()
+        cs = recipient_.generate(c)
+
+        # Encrypt and contribute data.
+        cs = {
+            id_: contributors_[i].encrypt(c_, t)
+            for (i, ((id_, c_), t)) in enumerate(zip(cs.items(), [number_a, number_b]))
+        }
+
+        # Evaluate the collaboration contributions to obtain a result.
+        result = recipient_.evaluate(cs)
+        self.assertEqual(
+            result,
+            {
+                'type': 'integer',
+                'value': number_a + number_b
+            }
+        )
+
     def test_collaboration_errors(self):
         """
         Confirm recipient and contributor class methods enforce
@@ -165,6 +201,12 @@ class Test_nthcommunity(unittest.TestCase):
             nthcommunity.table(
                 contributor=nthcommunity.contributor(),
                 limit=100
+            ),
+            nthcommunity.summation(
+                nthcommunity.table(
+                    contributor=nthcommunity.contributor(),
+                    limit=100
+                )
             ),
             nthcommunity.count(
                 nthcommunity.intersection(

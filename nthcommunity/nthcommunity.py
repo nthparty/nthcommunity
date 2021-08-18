@@ -6,6 +6,7 @@ data collaboration API and platform.
 
 from __future__ import annotations
 import doctest
+import base64
 import secrets
 import uuid
 import json
@@ -33,6 +34,18 @@ class count(collaboration):
             "arguments": list(arguments)
         })
 
+class summation(collaboration):
+    """
+    Collaboration tree node for the summation operation.
+    """
+    def __init__(self, *arguments):
+        super().__init__(self)
+        self.update({
+            "type": "operation",
+            "value": "summation",
+            "arguments": list(arguments)
+        })
+
 class intersection(collaboration):
     """
     Collaboration tree node for the intersection operation.
@@ -50,12 +63,13 @@ class integer(collaboration):
     A contributed data set within a collaboration tree
     data structure.
     """
-    def __init__(self, value):
+    def __init__(self, value=None, contributor=None): # pylint: disable=W0621
         super().__init__(self)
-        self.update({
-            "type": "integer",
-            "value": value
-        })
+        self["type"] = "integer"
+        if value is not None:
+            self["value"] = value
+        if contributor is not None:
+            self["contributor"] = contributor
 
 class table(collaboration):
     """
@@ -104,6 +118,46 @@ class contributor(dict):
         if argument["type"] == "operation" and argument["value"] == "intersection":
             # Update argument collaboration tree with contribution.
             return count(contributor._for_intersection(argument, contribution, material))
+
+        raise ValueError("cannot contribute to collaboration due to its structure")
+
+    @staticmethod
+    def _for_summation(collaboration, contribution, material): # pylint: disable=W0621
+        """
+        Encrypt a data set as a contribution to a collaboration
+        (or sub-collaboration) that has a `summation` operation node.
+        """
+        c = collaboration["arguments"][0]
+
+        if "public" in c:
+            # Extract public key to use for encrypting for the service platform.
+            public_key = bcl.public.from_base64(c["public"])
+
+            # Extract public key to use for encrypting data for the recipient.
+            public_key_recipient = bcl.public.from_base64(material["public"])
+
+            mask = (int.from_bytes(secrets.token_bytes(32), 'little') % (2**128))
+            value = (contribution + mask) % (2**128)
+
+            value_enc = bcl.asymmetric.encrypt(
+                public_key_recipient,
+                int(value).to_bytes(32, 'little')
+            )
+            mask_enc = bcl.asymmetric.encrypt(
+                public_key,
+                int(mask).to_bytes(32, 'little')
+            )
+
+            if c["type"] == "integer":
+                # Update argument collaboration tree with contribution.
+                i = integer(
+                    contributor=c["contributor"],
+                    value=[
+                        value_enc.to_base64(),
+                        mask_enc.to_base64()
+                    ]
+                )
+                return summation(i)
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 
@@ -214,6 +268,8 @@ class contributor(dict):
                 return contributor._for_count(c, contribution, material)
             if c["value"] == "intersection":
                 return contributor._for_intersection(c, contribution, material)
+            if c["value"] == "summation":
+                return contributor._for_summation(c, contribution, material)
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 
@@ -233,7 +289,16 @@ class recipient: # pylint: disable=R0903
 
         # Raw integer outputs do not need to be decrypted
         if c["type"] == "integer":
-            return c
+            if isinstance(c["value"], int):
+                return integer(value=c["value"])
+            if isinstance(c["value"], list):
+                s = 0
+                for v in c["value"][:1]:
+                    s = (s + int.from_bytes(base64.standard_b64decode(v), 'little')) % (2**128)
+                for v in c["value"][1:]:
+                    bs = bcl.asymmetric.decrypt(self.secret, bcl.cipher.from_base64(v))
+                    s = (s + int.from_bytes(bs, 'little')) % (2**128)
+                return integer(value=s)
 
         # Decrypt the contents of the table.
         if c["type"] == "table":
@@ -248,7 +313,7 @@ class recipient: # pylint: disable=R0903
             ]
             return c
 
-        return None
+        return None # pragma: no cover
 
     def generate(self: recipient, collaboration): # pylint: disable=R0201,W0621
         """
