@@ -179,6 +179,23 @@ class Test_nthcommunity(unittest.TestCase):
             }
         )
 
+    def test_service_error(self):
+        """
+        Test an error response from the service API.
+        """
+        recipient_ = nthcommunity.recipient()
+        contributor_ = nthcommunity.contributor()
+        c = nthcommunity.summation(
+            nthcommunity.integer(contributor=nthcommunity.contributor()),
+            nthcommunity.integer(contributor=nthcommunity.contributor())
+        )
+
+        # Test service API response that explicitly indicates an error.
+        self.assertRaises(
+            nthcommunity.ServiceError,
+            lambda: recipient_.evaluate({contributor_["identifier"]: c})
+        )
+
     def test_collaboration_errors(self):
         """
         Confirm recipient and contributor class methods enforce

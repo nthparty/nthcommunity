@@ -3,4 +3,5 @@ from nthcommunity.nthcommunity import\
     collaboration,\
     count, intersection, summation,\
     integer, table,\
-    contributor, recipient
+    contributor, recipient,\
+    ServiceError

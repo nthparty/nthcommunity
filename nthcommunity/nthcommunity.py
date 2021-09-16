@@ -105,6 +105,38 @@ def shares(value: int, quantity: int = 2, exponent: int = 32):
     )
     return ss
 
+class ServiceError(RuntimeError): # pylint: disable=C0103
+    """
+    Exception the service platform responded to an API request
+    but indicated an error has occurred service-side (due to
+    either an improperly configured service instance or an improper
+    request).
+    """
+
+def _service(method, request):
+    """
+    Send a request to the service API, raise exceptions for any
+    unexpected responses, and returned a parsed result.
+    """
+    response = requests.post(
+        "https://api.nth.community/",
+        data=json.dumps({method: request})
+    )
+
+    # Attempt to parse response and handle error conditions associated
+    # with the response format and/or content.
+    try:
+        response_dict = response.json()
+    except: # pragma: no cover
+        raise ServiceError("service did not return a valid response") from None
+
+    if "error" in response_dict:
+        raise ServiceError(response_dict['error'])
+    if method not in response_dict:
+        raise ServiceError("service did not return a valid response") # pragma: no cover
+
+    return response_dict
+
 class collaboration(dict):
     """
     Tree data structure representing a data collaboration.
@@ -393,16 +425,8 @@ class contributor(dict):
         Validate the certificate within a collaboration obtained from
         a recipient by submitting it to the nth.community platform API.
         """
-        response = requests.post(
-            "https://api.nth.community/",
-            data=json.dumps({
-                "validate": {
-                    "collaboration": collaboration
-                }
-            })
-        )
-        response_json = response.json()
-        return response_json["validate"]
+        response = _service("validate", {"collaboration": collaboration})
+        return response["validate"]
 
     def encrypt(self: contributor, collaboration, contribution): # pylint: disable=W0621
         """
@@ -476,16 +500,8 @@ class recipient: # pylint: disable=R0903
         API to receive the set of contributor keys that can be
         distributed to contributors.
         """
-        response = requests.post(
-            "https://api.nth.community/",
-            data=json.dumps({
-                "generate": {
-                    "collaboration": collaboration
-                }
-            })
-        )
-        response_json = response.json()
-        contribution_keys = response_json["generate"]
+        response = _service("generate", {"collaboration": collaboration})
+        contribution_keys = response["generate"]
 
         # Add recipient-generated cryptographic material.
         scalar = oblivious.scalar().to_base64()
@@ -503,17 +519,12 @@ class recipient: # pylint: disable=R0903
         collaborations from contributors) by submitting it to the
         nth.community platform API.
         """
-        response = requests.post(
-            "https://api.nth.community/",
-            data=json.dumps({
-                "evaluate": {
-                    "collaborations": collaborations
-                }
-            })
-        )
-        response_json = response.json()
-        c = response_json["evaluate"] # pylint: disable=W0621
+        response = _service("evaluate", {"collaborations": collaborations})
+        c = response["evaluate"]
+
+        # Decrypt the response.
         c = self._decrypt(c)
+
         return c
 
 if __name__ == "__main__":
