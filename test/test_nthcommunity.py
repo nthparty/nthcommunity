@@ -1,5 +1,4 @@
-"""Unit tests for the nthcommunity module.
-
+"""
 Test suite with functional unit tests for all classes and
 methods, including direct interaction with the nth.community
 platform API.
