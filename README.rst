@@ -4,6 +4,16 @@ nthcommunity
 
 Open-source Python library that allows developers to leverage the nth.community API and platform to implement secure, privacy-preserving data collaborations within their web services and applications.
 
+|travis| |coveralls|
+
+.. |travis| image:: https://app.travis-ci.com/nthparty/nthcommunity.svg?branch=main
+   :target: https://app.travis-ci.com/nthparty/nthcommunity
+   :alt: Travis CI build status.
+
+.. |coveralls| image:: https://coveralls.io/repos/github/nthparty/nthcommunity/badge.svg?branch=main
+   :target: https://coveralls.io/github/nthparty/nthcommunity?branch=main
+   :alt: Coveralls test coverage summary.
+
 Package Usage
 ------------------------------
 The library can be imported in the usual ways::
