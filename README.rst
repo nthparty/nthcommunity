@@ -4,7 +4,11 @@ nthcommunity
 
 Open-source Python library that allows developers to leverage the nth.community API and platform to implement secure, privacy-preserving data collaborations within their web services and applications.
 
-|travis| |coveralls|
+|readthedocs| |travis| |coveralls|
+
+.. |readthedocs| image:: https://readthedocs.org/projects/mr4mp/badge/?version=latest
+   :target: https://mr4mp.readthedocs.io/en/latest/?badge=latest
+   :alt: Read the Docs documentation status.
 
 .. |travis| image:: https://app.travis-ci.com/nthparty/nthcommunity.svg?branch=main
    :target: https://app.travis-ci.com/nthparty/nthcommunity
