@@ -1,12 +1,16 @@
 from setuptools import setup
 
 with open("README.rst", "r") as fh:
-    long_description = fh.read()
+    long_description = fh.read().replace(".. include:: toc.rst\n\n", "")
+
+# The line below can be parsed by `docs/conf.py`.
+name = "nthcommunity"
+version = "0.1.0"
 
 setup(
-    name="nthcommunity",
-    version="0.1.0",
-    packages=["nthcommunity",],
+    name=name,
+    version=version,
+    packages=[name,],
     install_requires=[
         "requests~=2.26.0",
         "oblivious~=4.0.1",
