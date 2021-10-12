@@ -1,6 +1,6 @@
 """
 Python library for the nth.community secure, privacy-preserving
-data collaboration API and platform.
+data collaboration service platforms and API.
 """
 from __future__ import annotations
 import doctest
@@ -15,194 +15,134 @@ import bcl
 # Maximum number of rows in a data set that can be contributed.
 CONTRIBUTION_LENGTH_MAX = 10000
 
-class ServiceError(RuntimeError): # pylint: disable=C0103
+class recipient: # pylint: disable=R0903
     """
-    Exception the service platform responded to an API request
-    but indicated an error has occurred service-side (due to
-    either an improperly configured service instance or an improper
-    request).
+    A collaboration begins with a recipient party. The recipient defines
+    a collaboration workflow, generates keys for contributors, accepts
+    encrypted contributions, and computes the results in concert with
+    the service platform API.
+
+    >>> r = recipient()
+
+    Contributor objects identify individual contributors.
+
+    >>> c_a = contributor()
+    >>> c_b = contributor()
+
+    A collaboration encodes a relationship between contributors to the
+    tables of data they contribute to the recipient-defined workflow.
+
+    >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
+
+    The recipient can (in concert the service platform) generate a
+    dictionary that maps each of the contributor identifiers to their
+    respective contribution key.
+
+    >>> id_to_key = r.generate(w)
+
+    Each of these individual keys can be delivered to their corresponding
+    contributor. Each contributor can then use that key to encrypt their
+    data contribution.
+
+    >>> table_a = [['a'], ['b'], ['c'], ['d']]
+    >>> enc_a = c_a.encrypt(id_to_key[c_a["identifier"]], table_a)
+    >>> table_b = [['b'], ['c'], ['d'], ['e']]
+    >>> enc_b = c_b.encrypt(id_to_key[c_b["identifier"]], table_b)
+
+    The recipient can then evaluate the contributions and obtain a result.
+
+    >>> result = r.evaluate({c_a["identifier"]: enc_a, c_b["identifier"]: enc_b})
+    >>> result["value"]
+    3
     """
+    def __init__(self: recipient):
+        self.secret = bcl.asymmetric.secret()
+        self.public = bcl.asymmetric.public(self.secret)
 
-def _service(method, request):
-    """
-    Send a request to the service API, raise exceptions for any
-    unexpected responses, and returned a parsed result.
-    """
-    response = requests.post(
-        "https://api.nth.community/",
-        data=json.dumps({method: request})
-    )
+    def _decrypt(self: recipient, collaboration): # pylint: disable=W0621
+        """
+        Decrypt the result of a collaboration (if it is necessary to do so).
+        """
+        c = collaboration
 
-    # Attempt to parse response and handle error conditions associated
-    # with the response format and/or content.
-    try:
-        response_dict = response.json()
-    except: # pragma: no cover
-        raise ServiceError("service did not return a valid response") from None
+        # Raw integer outputs do not need to be decrypted
+        if c["type"] == "integer":
+            if isinstance(c["value"], int):
+                return integer(value=c["value"])
+            if isinstance(c["value"], list):
+                s = 0
+                for v in c["value"][:1]:
+                    s = s + additive.share.from_base64(v)
+                for v in c["value"][1:]:
+                    bs = bcl.asymmetric.decrypt(self.secret, bcl.cipher.from_base64(v))
+                    s = s + additive.share.from_bytes(bs)
+                return integer(value=s.to_int())
 
-    if "error" in response_dict:
-        raise ServiceError(response_dict['error'])
-    if method not in response_dict:
-        raise ServiceError("service did not return a valid response") # pragma: no cover
+        # Decrypt the contents of the table.
+        if c["type"] == "table":
+            c["value"] = [
+                [
+                    bcl.asymmetric.decrypt(
+                        self.secret,
+                        bcl.cipher.from_base64(row[0])
+                    ).decode('utf-8')
+                ]
+                for row in c["value"]
+            ]
+            return c
 
-    return response_dict
+        return None # pragma: no cover
 
-class collaboration(dict):
-    """
-    Tree data structure representing a data collaboration.
-    """
+    def generate(self: recipient, collaboration): # pylint: disable=R0201,W0621
+        """
+        Submit a collaboration via the nth.community platform
+        API to receive the set of contributor keys that can be
+        distributed to contributors.
+        """
+        response = _service("generate", {"collaboration": collaboration})
+        contribution_keys = response["generate"]
 
-class count(collaboration):
-    """
-    Collaboration tree node for the count operation.
+        # Add recipient-generated cryptographic material.
+        scalar = oblivious.scalar().to_base64()
+        for contribution_key in contribution_keys.values():
+            contribution_key["material"] = {
+                "public": self.public.to_base64(),
+                "scalar": scalar
+            }
 
-    >>> count(integer(123))
-    Traceback (most recent call last):
-      ...
-    TypeError: count operation must be applied to a single intersection collaboration
-    """
-    def __init__(self, *arguments, _internal=False):
-        if not _internal and (
-            len(arguments) != 1 or not isinstance(arguments[0], intersection)
-        ):
-            raise TypeError(
-                "count operation must be applied to a single intersection collaboration"
-            )
+        return contribution_keys
 
-        super().__init__(self)
-        self.update({
-            "type": "operation",
-            "value": "count",
-            "arguments": list(arguments)
-        })
+    def evaluate(self: recipient, collaborations): # pylint: disable=R0201,W0621
+        """
+        Evaluate a collaboration (represented as a collection of
+        collaborations from contributors) by submitting it to the
+        nth.community platform API.
+        """
+        response = _service("evaluate", {"collaborations": collaborations})
+        c = response["evaluate"]
 
-class summation(collaboration):
-    """
-    Collaboration tree node for the summation operation.
+        # Decrypt the response.
+        c = self._decrypt(c)
 
-    >>> summation(integer(123))
-    Traceback (most recent call last):
-      ...
-    TypeError: summation operation must be applied to two or more integers
-    """
-    def __init__(self, *arguments, _internal=False):
-        if not _internal and (
-            len(arguments) < 2 or not (
-                all(isinstance(argument, integer) for argument in arguments)
-            )
-        ):
-            raise TypeError(
-                "summation operation must be applied to two or more integers"
-            )
-
-        super().__init__(self)
-        self.update({
-            "type": "operation",
-            "value": "summation",
-            "arguments": list(arguments)
-        })
-
-class intersection(collaboration):
-    """
-    Collaboration tree node for the intersection operation.
-
-    >>> intersection(table())
-    Traceback (most recent call last):
-      ...
-    TypeError: intersection operation must be applied to two or more tables
-    """
-    def __init__(self, *arguments, _internal=False):
-        if not _internal and (
-            len(arguments) < 2 or not (
-                all(isinstance(argument, table) for argument in arguments)
-            )
-        ):
-            raise TypeError(
-                "intersection operation must be applied to two or more tables"
-            )
-
-        super().__init__(self)
-        self.update({
-            "type": "operation",
-            "value": "intersection",
-            "arguments": list(arguments)
-        })
-
-class integer(collaboration):
-    """
-    A contributed data set within a collaboration tree
-    data structure.
-
-    >>> integer(-123)
-    Traceback (most recent call last):
-      ...
-    ValueError: integer value must be a non-negative 32-bit integer
-    """
-    def __init__(self, value=None, contributor=None, _internal=False): # pylint: disable=W0621
-        if not _internal and (
-            value is not None and not (
-                isinstance(value, int) and 0 <= value < 2**32
-            )
-        ):
-            raise ValueError(
-                "integer value must be a non-negative 32-bit integer"
-            )
-
-        super().__init__(self)
-        self["type"] = "integer"
-        if value is not None:
-            self["value"] = value
-        if contributor is not None:
-            self["contributor"] = contributor
-
-class table(collaboration):
-    """
-    A contributed data set within a collaboration tree
-    data structure.
-
-    >>> table(['a', 'b', 'c'])
-    Traceback (most recent call last):
-      ...
-    ValueError: table value must be a list of single-item lists, each containing a string
-    """
-    def __init__(
-            self, value=None, contributor=None, limit=None, # pylint: disable=W0621
-            _internal=False
-        ):
-        if not _internal and (
-            value is not None and not (
-                isinstance(value, list) and all(
-                    isinstance(row, list) and len(row) == 1 and isinstance(row[0], str)
-                    for row in value
-                )
-            )
-        ):
-            raise ValueError(
-                "table value must be a list of single-item lists, each containing a string"
-            )
-
-        super().__init__(self)
-        self["type"] = "table"
-        if contributor is not None:
-            self["contributor"] = contributor
-        if limit is not None:
-            if limit > CONTRIBUTION_LENGTH_MAX:
-                raise ValueError(
-                    'maximum table length limit is ' + str(CONTRIBUTION_LENGTH_MAX)
-                )
-            self["limit"] = limit
-        if value is not None:
-            if len(value) > self.get("limit", CONTRIBUTION_LENGTH_MAX):
-                raise ValueError(
-                    'table length exceeds maximum of ' + \
-                    str(self.get("limit", CONTRIBUTION_LENGTH_MAX))
-                )
-            self["value"] = value
+        return c
 
 class contributor(dict):
     """
-    Data structure and methods for an individual data contributor
-    within a collaboration.
+    Data structure and methods for an individual data contributor within
+    a collaboration. A contributor receives a collaboration key from a
+    recipient and encrypts their data contribution using that key.
+
+    >>> (r, c_a, c_b) = (recipient(), contributor(), contributor())
+    >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
+    >>> id_to_key = r.generate(w)
+
+    Each of these individual keys can be delivered to their corresponding
+    contributor. Each contributor can then use that key to encrypt their
+    data contribution.
+
+    >>> id_a = c_a["identifier"]
+    >>> table_a = [['a'], ['b'], ['c'], ['d']]
+    >>> table_a_encrypted = c_a.encrypt(id_to_key[id_a], table_a)
     """
     def __init__(self: contributor, identifier=None):
         super().__init__(self)
@@ -362,80 +302,223 @@ class contributor(dict):
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 
-class recipient: # pylint: disable=R0903
+class collaboration(dict):
     """
-    Methods for a collaboration result recipient.
+    Tree data structure representing a data collaboration.
     """
-    def __init__(self: recipient):
-        self.secret = bcl.asymmetric.secret()
-        self.public = bcl.asymmetric.public(self.secret)
 
-    def _decrypt(self: recipient, collaboration): # pylint: disable=W0621
-        """
-        Decrypt the result of a collaboration (if it is necessary to do so).
-        """
-        c = collaboration
+class count(collaboration):
+    """
+    Collaboration tree node for the count operation. A count operation can be
+    applied to a single intersection collaboration.
 
-        # Raw integer outputs do not need to be decrypted
-        if c["type"] == "integer":
-            if isinstance(c["value"], int):
-                return integer(value=c["value"])
-            if isinstance(c["value"], list):
-                s = 0
-                for v in c["value"][:1]:
-                    s = s + additive.share.from_base64(v)
-                for v in c["value"][1:]:
-                    bs = bcl.asymmetric.decrypt(self.secret, bcl.cipher.from_base64(v))
-                    s = s + additive.share.from_bytes(bs)
-                return integer(value=s.to_int())
+    >>> (c_a, c_b) = (contributor(), contributor())
+    >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
 
-        # Decrypt the contents of the table.
-        if c["type"] == "table":
-            c["value"] = [
-                [
-                    bcl.asymmetric.decrypt(
-                        self.secret,
-                        bcl.cipher.from_base64(row[0])
-                    ).decode('utf-8')
-                ]
-                for row in c["value"]
-            ]
-            return c
+    Attempts to apply a count operation to a collaboration workflow that is not
+    compatible with a count operation raises an exception.
 
-        return None # pragma: no cover
+    >>> count(integer(123))
+    Traceback (most recent call last):
+      ...
+    TypeError: count operation must be applied to a single intersection collaboration
+    """
+    def __init__(self, *arguments, _internal=False):
+        if not _internal and (
+            len(arguments) != 1 or not isinstance(arguments[0], intersection)
+        ):
+            raise TypeError(
+                "count operation must be applied to a single intersection collaboration"
+            )
 
-    def generate(self: recipient, collaboration): # pylint: disable=R0201,W0621
-        """
-        Submit a collaboration via the nth.community platform
-        API to receive the set of contributor keys that can be
-        distributed to contributors.
-        """
-        response = _service("generate", {"collaboration": collaboration})
-        contribution_keys = response["generate"]
+        super().__init__(self)
+        self.update({
+            "type": "operation",
+            "value": "count",
+            "arguments": list(arguments)
+        })
 
-        # Add recipient-generated cryptographic material.
-        scalar = oblivious.scalar().to_base64()
-        for contribution_key in contribution_keys.values():
-            contribution_key["material"] = {
-                "public": self.public.to_base64(),
-                "scalar": scalar
-            }
+class summation(collaboration):
+    """
+    Collaboration tree node for the summation operation. A summation operation
+    can be applied to two or more contributors' integer contributions.
 
-        return contribution_keys
+    >>> (c_a, c_b) = (contributor(), contributor())
+    >>> w = summation(integer(contributor=c_a), integer(contributor=c_b))
 
-    def evaluate(self: recipient, collaborations): # pylint: disable=R0201,W0621
-        """
-        Evaluate a collaboration (represented as a collection of
-        collaborations from contributors) by submitting it to the
-        nth.community platform API.
-        """
-        response = _service("evaluate", {"collaborations": collaborations})
-        c = response["evaluate"]
+    Attempts to apply a summation operation to a collaboration workflow that is
+    not compatible with a summation operation raises an exception.
 
-        # Decrypt the response.
-        c = self._decrypt(c)
+    >>> summation(integer(123))
+    Traceback (most recent call last):
+      ...
+    TypeError: summation operation must be applied to two or more integers
+    """
+    def __init__(self, *arguments, _internal=False):
+        if not _internal and (
+            len(arguments) < 2 or not (
+                all(isinstance(argument, integer) for argument in arguments)
+            )
+        ):
+            raise TypeError(
+                "summation operation must be applied to two or more integers"
+            )
 
-        return c
+        super().__init__(self)
+        self.update({
+            "type": "operation",
+            "value": "summation",
+            "arguments": list(arguments)
+        })
+
+class intersection(collaboration):
+    """
+    Collaboration tree node for the intersection operation. An intersection
+    operation can be applied to two or more contributors' table contributions.
+
+    >>> (c_a, c_b) = (contributor(), contributor())
+    >>> w = intersection(table(contributor=c_a), table(contributor=c_b))
+
+    Attempts to apply an intersection operation to a collaboration workflow
+    that is not compatible with an intersection operation raises an exception.
+
+    >>> intersection(table())
+    Traceback (most recent call last):
+      ...
+    TypeError: intersection operation must be applied to two or more tables
+    """
+    def __init__(self, *arguments, _internal=False):
+        if not _internal and (
+            len(arguments) < 2 or not (
+                all(isinstance(argument, table) for argument in arguments)
+            )
+        ):
+            raise TypeError(
+                "intersection operation must be applied to two or more tables"
+            )
+
+        super().__init__(self)
+        self.update({
+            "type": "operation",
+            "value": "intersection",
+            "arguments": list(arguments)
+        })
+
+class integer(collaboration):
+    """
+    Collaboration tree node for a contributed integer value within a
+    collaboration tree data structure. Only 32-bit positive integers
+    are supported.
+
+    >>> c = contributor()
+    >>> w = integer(value=123, contributor=c)
+
+    Attempts to construct an invalid integer contribution raises an exception.
+
+    >>> integer(-123)
+    Traceback (most recent call last):
+      ...
+    ValueError: integer value must be a non-negative 32-bit integer
+    """
+    def __init__(self, value=None, contributor=None, _internal=False): # pylint: disable=W0621
+        if not _internal and (
+            value is not None and not (
+                isinstance(value, int) and 0 <= value < 2**32
+            )
+        ):
+            raise ValueError(
+                "integer value must be a non-negative 32-bit integer"
+            )
+
+        super().__init__(self)
+        self["type"] = "integer"
+        if value is not None:
+            self["value"] = value
+        if contributor is not None:
+            self["contributor"] = contributor
+
+class table(collaboration):
+    """
+    Collaboration tree node for a contributed data table within a
+    collaboration tree data structure. A contributed table must be
+    a list of rows, and each row must a single-element list that
+    contains exactly one string.
+
+    >>> c = contributor()
+    >>> w = table(value=[['a'], ['b'], ['c']], contributor=c)
+
+    Attempts to construct an invalid table contribution raises an exception.
+
+    >>> table(['a', 'b', 'c'])
+    Traceback (most recent call last):
+      ...
+    ValueError: table value must be a list of single-item lists, each containing a string
+    """
+    def __init__(
+            self, value=None, contributor=None, limit=None, # pylint: disable=W0621
+            _internal=False
+        ):
+        if not _internal and (
+            value is not None and not (
+                isinstance(value, list) and all(
+                    isinstance(row, list) and len(row) == 1 and isinstance(row[0], str)
+                    for row in value
+                )
+            )
+        ):
+            raise ValueError(
+                "table value must be a list of single-item lists, each containing a string"
+            )
+
+        super().__init__(self)
+        self["type"] = "table"
+        if contributor is not None:
+            self["contributor"] = contributor
+        if limit is not None:
+            if limit > CONTRIBUTION_LENGTH_MAX:
+                raise ValueError(
+                    'maximum table length limit is ' + str(CONTRIBUTION_LENGTH_MAX)
+                )
+            self["limit"] = limit
+        if value is not None:
+            if len(value) > self.get("limit", CONTRIBUTION_LENGTH_MAX):
+                raise ValueError(
+                    'table length exceeds maximum of ' + \
+                    str(self.get("limit", CONTRIBUTION_LENGTH_MAX))
+                )
+            self["value"] = value
+
+class ServiceError(RuntimeError): # pylint: disable=C0103
+    """
+    Exception the service platform responded to an API request
+    but indicated an error has occurred service-side (due to
+    either an improperly configured service instance or an improper
+    request).
+    """
+
+def _service(method, request):
+    """
+    Send a request to the service API, raise exceptions for any
+    unexpected responses, and returned a parsed result.
+    """
+    response = requests.post(
+        "https://api.nth.community/",
+        data=json.dumps({method: request})
+    )
+
+    # Attempt to parse response and handle error conditions associated
+    # with the response format and/or content.
+    try:
+        response_dict = response.json()
+    except: # pragma: no cover
+        raise ServiceError("service did not return a valid response") from None
+
+    if "error" in response_dict:
+        raise ServiceError(response_dict['error'])
+    if method not in response_dict:
+        raise ServiceError("service did not return a valid response") # pragma: no cover
+
+    return response_dict
 
 if __name__ == "__main__":
     doctest.testmod() # pragma: no cover

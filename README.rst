@@ -2,7 +2,7 @@
 nthcommunity
 ============
 
-Open-source Python library that allows developers to leverage the nth.community API and platform to implement secure, privacy-preserving data collaborations within their web services and applications.
+Open-source Python library that allows developers to leverage the nth.community service platform and API to implement secure, privacy-preserving data collaborations within their web services and applications.
 
 |readthedocs| |travis| |coveralls|
 
