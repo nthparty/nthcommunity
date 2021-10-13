@@ -44,13 +44,13 @@ class recipient: # pylint: disable=R0903
     data contribution.
 
     >>> table_a = [['a'], ['b'], ['c'], ['d']]
-    >>> enc_a = c_a.encrypt(id_to_key[c_a["identifier"]], table_a)
+    >>> enc_a = c_a.encrypt(id_to_key[c_a.identifier()], table_a)
     >>> table_b = [['b'], ['c'], ['d'], ['e']]
-    >>> enc_b = c_b.encrypt(id_to_key[c_b["identifier"]], table_b)
+    >>> enc_b = c_b.encrypt(id_to_key[c_b.identifier()], table_b)
 
     The recipient can then evaluate the contributions and obtain a result.
 
-    >>> result = r.evaluate({c_a["identifier"]: enc_a, c_b["identifier"]: enc_b})
+    >>> result = r.evaluate({c_a.identifier(): enc_a, c_b.identifier(): enc_b})
     >>> result["value"]
     3
     """
@@ -139,7 +139,7 @@ class contributor(dict):
     contributor. Each contributor can then use that key to encrypt their
     data contribution.
 
-    >>> id_a = c_a["identifier"]
+    >>> id_a = c_a.identifier()
     >>> table_a = [['a'], ['b'], ['c'], ['d']]
     >>> table_a_encrypted = c_a.encrypt(id_to_key[id_a], table_a)
     """
@@ -149,6 +149,16 @@ class contributor(dict):
             "type": "contributor",
             "identifier": str(uuid.uuid4()) if identifier is None else identifier
         })
+
+    def identifier(self):
+        """
+        Return this contributor's unique identifier.
+
+        >>> c = contributor()
+        >>> isinstance(c.identifier(), str)
+        True
+        """
+        return self["identifier"]
 
     @staticmethod
     def _for_count(collaboration, contribution, material): # pylint: disable=W0621
