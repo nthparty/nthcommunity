@@ -1,8 +1,7 @@
 """
 Python library for the nth.community secure, privacy-preserving
-data collaboration service platforms and API.
+data collaboration service platform and API.
 """
-from __future__ import annotations
 import doctest
 import secrets
 import uuid
@@ -55,11 +54,11 @@ class recipient: # pylint: disable=R0903
     >>> result["value"]
     3
     """
-    def __init__(self: recipient):
+    def __init__(self):
         self.secret = bcl.asymmetric.secret()
         self.public = bcl.asymmetric.public(self.secret)
 
-    def _decrypt(self: recipient, collaboration): # pylint: disable=W0621
+    def _decrypt(self, collaboration): # pylint: disable=W0621
         """
         Decrypt the result of a collaboration (if it is necessary to do so).
         """
@@ -93,7 +92,7 @@ class recipient: # pylint: disable=R0903
 
         return None # pragma: no cover
 
-    def generate(self: recipient, collaboration): # pylint: disable=R0201,W0621
+    def generate(self, collaboration): # pylint: disable=R0201,W0621
         """
         Submit a collaboration via the nth.community platform
         API to receive the set of contributor keys that can be
@@ -112,7 +111,7 @@ class recipient: # pylint: disable=R0903
 
         return contribution_keys
 
-    def evaluate(self: recipient, collaborations): # pylint: disable=R0201,W0621
+    def evaluate(self, collaborations): # pylint: disable=R0201,W0621
         """
         Evaluate a collaboration (represented as a collection of
         collaborations from contributors) by submitting it to the
@@ -144,7 +143,7 @@ class contributor(dict):
     >>> table_a = [['a'], ['b'], ['c'], ['d']]
     >>> table_a_encrypted = c_a.encrypt(id_to_key[id_a], table_a)
     """
-    def __init__(self: contributor, identifier=None):
+    def __init__(self, identifier=None):
         super().__init__(self)
         self.update({
             "type": "contributor",
@@ -270,7 +269,7 @@ class contributor(dict):
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 
-    def validate(self: contributor, collaboration): # pylint: disable=R0201,W0621
+    def validate(self, collaboration): # pylint: disable=R0201,W0621
         """
         Validate the certificate within a collaboration obtained from
         a recipient by submitting it to the nth.community platform API.
@@ -278,7 +277,7 @@ class contributor(dict):
         response = _service("validate", {"collaboration": collaboration})
         return response["validate"]
 
-    def encrypt(self: contributor, collaboration, contribution): # pylint: disable=W0621
+    def encrypt(self, collaboration, contribution): # pylint: disable=W0621
         """
         Encrypt a data set as a contribution to a collaboration.
         """

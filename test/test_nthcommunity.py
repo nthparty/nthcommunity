@@ -25,7 +25,8 @@ def api_exported():
         'collaboration',
         'count', 'intersection', 'summation',
         'integer', 'table',
-        'contributor', 'recipient'
+        'contributor', 'recipient',
+        'ServiceError'
     }
 
 class Test_namespace(unittest.TestCase):
