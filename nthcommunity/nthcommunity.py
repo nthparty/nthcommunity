@@ -16,39 +16,68 @@ CONTRIBUTION_LENGTH_MAX = 10000
 
 class recipient: # pylint: disable=R0903
     """
-    A collaboration begins with a recipient party. The recipient defines
-    a collaboration workflow, generates keys for contributors, accepts
-    encrypted contributions, and computes the results in concert with
-    the service platform API.
+    A collaboration begins with a recipient party represented by a
+    :obj:`recipient` object. The recipient defines a :obj:`collaboration`
+    workflow, generates keys for individual contributors, accepts encrypted
+    contributions, and computes the results in concert with the service
+    platform API.
 
     >>> r = recipient()
 
-    Contributor objects identify individual contributors.
+    Individual :obj:`contributor` objects identify individual contributors.
 
     >>> c_a = contributor()
     >>> c_b = contributor()
 
-    A collaboration encodes a relationship between contributors to the
-    tables of data they contribute to the recipient-defined workflow.
+    The :obj:`contributor` class is derived from ``dict`` and contains a
+    value under the ``'identifier'`` key that corresponds to the unique
+    identifier for that contributor. This value can also be retrieved using
+    the :obj:`contributor.identifier` method.
+
+    >>> 'identifier' in c_a
+    True
+    >>> c_a.identifier() is not None
+    True
+
+    A :obj:`collaboration` is a tree-like data structure that defines how the
+    overall result of the collaboration is computed. The leaf nodes of
+    the data structure must indicate which contributor must supply the
+    encrypted data corresponding to that node. The internal, non-leaf nodes
+    represent data operations such as :obj:`count`, :obj:`summation`, and
+    :obj:`intersection`.
 
     >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
 
-    The recipient can (in concert the service platform) generate a
-    dictionary that maps each of the contributor identifiers to their
+    The recipient can (in concert the service platform) :obj:`recipient.generate`
+    a dictionary that maps each of the contributor identifiers to their
     respective contribution key.
 
     >>> id_to_key = r.generate(w)
 
-    Each of these individual keys can be delivered to their corresponding
-    contributor. Each contributor can then use that key to encrypt their
-    data contribution.
+    Each of these individual keys ``id_to_key[c_a.identifier()]`` and
+    ``id_to_key[c_b.identifier()]`` can be converted to JSON using the
+    :obj:`collaboration.to_json` method and delivered to their corresponding
+    contributor.
+
+    >>> key_a_json = id_to_key[c_a.identifier()].to_json()
+    >>> key_b_json = id_to_key[c_b.identifier()].to_json()
+
+    Contributors can parse the JSON strings using :obj:`collaboration.from_json`.
+
+    >>> key_a = collaboration.from_json(key_a_json)
+    >>> key_b = collaboration.from_json(key_b_json)
+
+    Each contributor can then :obj:`contributor.encrypt` their
+    data contribution using their key.
 
     >>> table_a = [['a'], ['b'], ['c'], ['d']]
-    >>> enc_a = c_a.encrypt(id_to_key[c_a.identifier()], table_a)
+    >>> enc_a = c_a.encrypt(key_a, table_a)
     >>> table_b = [['b'], ['c'], ['d'], ['e']]
-    >>> enc_b = c_b.encrypt(id_to_key[c_b.identifier()], table_b)
+    >>> enc_b = c_b.encrypt(key_b, table_b)
 
-    The recipient can then evaluate the contributions and obtain a result.
+    Because encrypted contributions are also :obj:`collaboration` objects, they
+    can be easily converted to and from JSON strings. The recipient can then
+    :obj:`recipient.evaluate` the encrypted contributions and obtain a result.
 
     >>> result = r.evaluate({c_a.identifier(): enc_a, c_b.identifier(): enc_b})
     >>> result["value"]
@@ -103,11 +132,14 @@ class recipient: # pylint: disable=R0903
 
         # Add recipient-generated cryptographic material.
         scalar = oblivious.scalar().to_base64()
-        for contribution_key in contribution_keys.values():
-            contribution_key["material"] = {
+        for identifier in contribution_keys:
+            contribution_keys[identifier]["material"] = {
                 "public": self.public.to_base64(),
                 "scalar": scalar
             }
+            contribution_keys[identifier] = collaboration.from_json(
+                contribution_keys[identifier]
+            )
 
         return contribution_keys
 
@@ -135,14 +167,32 @@ class contributor(dict):
     >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
     >>> id_to_key = r.generate(w)
 
-    Each of these individual keys can be delivered to their corresponding
-    contributor. Each contributor can then use that key to encrypt their
-    data contribution.
+    Each of the individual keys in ``id_to_key.values()`` can be delivered
+    to their corresponding contributor. Each contributor can then use that
+    key to :obj:`contributor.encrypt` their data contribution, as shown below.
 
     >>> id_a = c_a.identifier()
     >>> table_a = [['a'], ['b'], ['c'], ['d']]
     >>> table_a_encrypted = c_a.encrypt(id_to_key[id_a], table_a)
     """
+    @staticmethod
+    def from_json(argument):
+        """
+        Parse a JSON object into an instance of this class.
+        """
+        if isinstance(argument, str):
+            argument = json.loads(argument)
+
+        if argument.get("type") == "contributor" and "identifier" in argument:
+            return contributor(
+                identifier=argument.get("identifier")
+            )
+
+        raise ValueError(
+            "supplied JSON string or dictionary does not represent a " + \
+            "contributor with correct internal structure"
+        )
+
     def __init__(self, identifier=None):
         super().__init__(self)
         self.update({
@@ -159,6 +209,12 @@ class contributor(dict):
         True
         """
         return self["identifier"]
+
+    def to_json(self, *args, **kwargs):
+        """
+        Convert an instance of this class into a JSON object.
+        """
+        return json.dumps(self, *args, **kwargs)
 
     @staticmethod
     def _for_count(collaboration, contribution, material): # pylint: disable=W0621
@@ -283,6 +339,8 @@ class contributor(dict):
         """
         Validate the certificate within a collaboration obtained from
         a recipient by submitting it to the nth.community platform API.
+        The :obj:`contributor.encrypt` method automatically invokes this
+        method before encrypting a contribution.
         """
         response = _service("validate", {"collaboration": collaboration})
         return response["validate"]
@@ -298,23 +356,86 @@ class contributor(dict):
             raise RuntimeError('collaboration certificate is invalid')
 
         # Extract cryptographic material provided by recipient.
-        material = c["material"]
+        if "material" in c:
+            material = c["material"]
 
-        # Encrypt data as necessitated by collaboration structure.
-        if c["type"] == "operation":
-            if c["value"] == "count":
-                return contributor._for_count(c, contribution, material)
-            if c["value"] == "intersection":
-                return contributor._for_intersection(c, contribution, material)
-            if c["value"] == "summation":
-                return contributor._for_summation(c, contribution, material)
+            # Encrypt data as necessitated by collaboration structure.
+            if c["type"] == "operation":
+                if c["value"] == "count":
+                    return contributor._for_count(c, contribution, material)
+                if c["value"] == "intersection":
+                    return contributor._for_intersection(c, contribution, material)
+                if c["value"] == "summation":
+                    return contributor._for_summation(c, contribution, material)
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 
 class collaboration(dict):
     """
-    Tree data structure representing a data collaboration.
+    Base class for tree data structure representing a data collaboration.
     """
+    @staticmethod
+    def from_json(argument):
+        """
+        Parse a JSON object into an instance of this class.
+        """
+        if isinstance(argument, str):
+            argument = json.loads(argument)
+
+        if argument.get("type") == "operation":
+            arguments = argument.get("arguments")
+            if isinstance(arguments, list):
+                cs = [collaboration.from_json(a) for a in arguments]
+
+            if argument.get("value") == "count":
+                c = count(*cs, _internal=True)
+            elif argument.get("value") == "intersection":
+                c = intersection(*cs, _internal=True)
+            elif argument.get("value") == "summation":
+                c = summation(*cs, _internal=True)
+
+            if "material" in argument:
+                c["material"] = argument["material"]
+            if "certificate" in argument:
+                c["certificate"] = argument["certificate"]
+
+            return c
+
+        if argument.get("type") == "integer" and "contributor" in argument:
+            i = integer(
+                value=argument.get("value"),
+                contributor=contributor.from_json(argument["contributor"]),
+                _internal=True
+            )
+
+            if "public" in argument:
+                i["public"] = argument["public"]
+
+            return i
+
+        if argument.get("type") == "table" and "contributor" in argument:
+            t = table(
+                value=argument.get("value"),
+                limit=argument.get("limit"),
+                contributor=contributor.from_json(argument["contributor"]),
+                _internal=True
+            )
+
+            if "public_key" in argument:
+                t["public_key"] = argument["public_key"]
+
+            return t
+
+        raise ValueError(
+            "supplied JSON string or dictionary does not represent a " + \
+            "collaboration with correct internal structure"
+        )
+
+    def to_json(self, *args, **kwargs):
+        """
+        Convert an instance of this class into a JSON object.
+        """
+        return json.dumps(self, *args, **kwargs)
 
 class count(collaboration):
     """

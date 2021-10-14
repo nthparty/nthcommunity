@@ -105,10 +105,22 @@ class Test_nthcommunity(unittest.TestCase):
         recipient_ = nthcommunity.recipient()
         cs = recipient_.generate(c)
 
+        # Test JSON conversion methods for contribution keys.
+        cs = {
+            k: nthcommunity.collaboration.from_json(v.to_json())
+            for (k, v) in cs.items()
+        }
+
         # Encrypt and contribute data.
         cs = {
             id_: contributors_[i].encrypt(c_, t)
             for (i, ((id_, c_), t)) in enumerate(zip(cs.items(), [table_a, table_b]))
+        }
+
+        # Test JSON conversion methods for encrypted contributions.
+        cs = {
+            k: nthcommunity.collaboration.from_json(v.to_json())
+            for (k, v) in cs.items()
         }
 
         # Evaluate the collaboration contributions to obtain a result.
@@ -163,10 +175,22 @@ class Test_nthcommunity(unittest.TestCase):
         recipient_ = nthcommunity.recipient()
         cs = recipient_.generate(c)
 
+        # Test JSON conversion methods for contribution keys.
+        cs = {
+            k: nthcommunity.collaboration.from_json(v.to_json())
+            for (k, v) in cs.items()
+        }
+
         # Encrypt and contribute data.
         cs = {
             id_: contributors_[i].encrypt(c_, t)
             for (i, ((id_, c_), t)) in enumerate(zip(cs.items(), [number_a, number_b]))
+        }
+
+        # Test JSON conversion methods for encrypted contributions.
+        cs = {
+            k: nthcommunity.collaboration.from_json(v.to_json())
+            for (k, v) in cs.items()
         }
 
         # Evaluate the collaboration contributions to obtain a result.
@@ -279,5 +303,16 @@ class Test_nthcommunity(unittest.TestCase):
             lambda: contributor_.encrypt(permitted, t)
         )
 
-if __name__ == "__main__":
-    pass
+        # Try to parse a collaboration from a JSON representation with missing
+        # attributes.
+        del permitted["type"]
+        self.assertRaises(
+            ValueError,
+            lambda: nthcommunity.collaboration.from_json(permitted.to_json())
+        )
+        c = nthcommunity.contributor.from_json(nthcommunity.contributor().to_json())
+        del c["identifier"]
+        self.assertRaises(
+            ValueError,
+            lambda: nthcommunity.contributor.from_json(c.to_json())
+        )
