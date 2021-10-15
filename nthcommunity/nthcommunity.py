@@ -11,6 +11,9 @@ import additive
 import oblivious
 import bcl
 
+# The nth.community service platform API endpoint.
+API_URL = "https://api.nth.community/0.1.0/"
+
 # Maximum number of rows in a data set that can be contributed.
 CONTRIBUTION_LENGTH_MAX = 10000
 
@@ -631,10 +634,7 @@ def _service(method, request):
     Send a request to the service API, raise exceptions for any
     unexpected responses, and returned a parsed result.
     """
-    response = requests.post(
-        "https://api.nth.community/",
-        data=json.dumps({method: request})
-    )
+    response = requests.post(API_URL, data=json.dumps({method: request}))
 
     # Attempt to parse response and handle error conditions associated
     # with the response format and/or content.
