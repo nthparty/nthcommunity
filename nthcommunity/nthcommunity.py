@@ -2,6 +2,8 @@
 Python library for the nth.community secure, privacy-preserving
 data collaboration service platform and API.
 """
+from __future__ import annotations
+from typing import Union
 import doctest
 import secrets
 import uuid
@@ -17,6 +19,82 @@ API_URL = "https://api.nth.community/0.1.0/"
 # Upper bounds on table and table field sizes.
 CONTRIBUTION_MAX_TABLE_LENGTH = 1000
 CONTRIBUTION_MAX_TABLE_ROW_FIELD_LENGTH = 256
+
+class collaboration(dict):
+    """
+    Base class for tree data structure representing a data collaboration.
+    Consult definitions of derived classes such as :obj:`intersection`
+    and :obj:`table` for more details, and find in-context usage examples
+    in the documentation for the :obj:`recipient` class.
+    """
+    @staticmethod
+    def from_json(argument: Union[str, dict]) -> collaboration:
+        """
+        Parse a dictionary or JSON string into an instance of this class.
+        Find usage examples in the documentation for the :obj:`recipient`
+        class.
+        """
+        if isinstance(argument, str):
+            argument = json.loads(argument)
+
+        if argument.get("type") == "operation":
+            arguments = argument.get("arguments")
+            if isinstance(arguments, list):
+                cs = [collaboration.from_json(a) for a in arguments]
+
+            if argument.get("value") == "count":
+                c = count(*cs, _internal=True)
+            elif argument.get("value") == "intersection":
+                c = intersection(*cs, _internal=True)
+            elif argument.get("value") == "summation":
+                c = summation(*cs, _internal=True)
+
+            if "material" in argument:
+                c["material"] = argument["material"]
+            if "certificate" in argument:
+                c["certificate"] = argument["certificate"]
+
+            return c
+
+        if argument.get("type") == "integer" and "contributor" in argument:
+            i = integer(
+                value=argument.get("value"),
+                contributor=contributor.from_json(argument["contributor"]),
+                _internal=True
+            )
+
+            if "public" in argument:
+                i["public"] = argument["public"]
+
+            return i
+
+        if argument.get("type") == "table" and "contributor" in argument:
+            t = table(
+                value=argument.get("value"),
+                limit=argument.get("limit"),
+                contributor=contributor.from_json(argument["contributor"]),
+                _internal=True
+            )
+
+            if "public" in argument:
+                t["public"] = argument["public"]
+
+            return t
+
+        raise ValueError(
+            "supplied JSON string or dictionary does not represent a " + \
+            "collaboration with correct internal structure"
+        )
+
+    def to_json(self, *args, **kwargs):
+        """
+        Convert an instance of this class into a JSON string. This method
+        is a wrapper for the ``json.dumps`` method found in the built-in
+        `json <https://docs.python.org/3/library/json.html>`_ library.
+        Find usage examples in the documentation for the :obj:`recipient`
+        class.
+        """
+        return json.dumps(self, *args, **kwargs)
 
 class recipient: # pylint: disable=R0903
     """
@@ -125,11 +203,12 @@ class recipient: # pylint: disable=R0903
 
         return None # pragma: no cover
 
-    def generate(self, collaboration): # pylint: disable=R0201,W0621
+    def generate(self, collaboration) -> dict: # pylint: disable=W0621
         """
-        Submit a collaboration via the nth.community platform
-        API to receive the set of contributor keys that can be
-        distributed to contributors.
+        Submit a collaboration via the nth.community platform API to
+        receive the set of contributor keys that can be distributed to
+        contributors. Find an in-context usage example in the
+        documentation for the :obj:`recipient` class.
         """
         response = _service("generate", {"collaboration": collaboration})
         contribution_keys = response["generate"]
@@ -147,11 +226,12 @@ class recipient: # pylint: disable=R0903
 
         return contribution_keys
 
-    def evaluate(self, collaborations): # pylint: disable=R0201,W0621
+    def evaluate(self, collaborations) -> collaboration: # pylint: disable=W0621
         """
         Evaluate a collaboration (represented as a collection of
         collaborations from contributors) by submitting it to the
-        nth.community platform API.
+        nth.community platform API. Find an in-context usage example
+        in the documentation for the :obj:`recipient` class.
         """
         response = _service("evaluate", {"collaborations": collaborations})
         c = response["evaluate"]
@@ -179,10 +259,31 @@ class contributor(dict):
     >>> table_a = [['a'], ['b'], ['c'], ['d']]
     >>> table_a_encrypted = c_a.encrypt(id_to_key[id_a], table_a)
     """
-    @staticmethod
-    def from_json(argument):
+    def __init__(self, identifier=None):
+        super().__init__(self)
+        self.update({
+            "type": "contributor",
+            "identifier": str(uuid.uuid4()) if identifier is None else identifier
+        })
+
+    def identifier(self) -> str:
         """
-        Parse a JSON object into an instance of this class.
+        Return this contributor's unique identifier.
+
+        >>> c = contributor()
+        >>> isinstance(c.identifier(), str)
+        True
+        """
+        return self["identifier"]
+
+    @staticmethod
+    def from_json(argument: Union[str, dict]) -> contributor:
+        """
+        Parse a dictionary or JSON string into an instance of this class.
+
+        >>> s = '{"type": "contributor", "identifier": "b1a63caf"}'
+        >>> isinstance(contributor.from_json(s), contributor)
+        True
         """
         if isinstance(argument, str):
             argument = json.loads(argument)
@@ -197,26 +298,15 @@ class contributor(dict):
             "contributor with correct internal structure"
         )
 
-    def __init__(self, identifier=None):
-        super().__init__(self)
-        self.update({
-            "type": "contributor",
-            "identifier": str(uuid.uuid4()) if identifier is None else identifier
-        })
-
-    def identifier(self):
+    def to_json(self, *args, **kwargs) -> str:
         """
-        Return this contributor's unique identifier.
+        Convert an instance of this class into a JSON string. This method
+        is a wrapper for the ``json.dumps`` method found in the built-in
+        `json <https://docs.python.org/3/library/json.html>`_ library.
 
-        >>> c = contributor()
-        >>> isinstance(c.identifier(), str)
-        True
-        """
-        return self["identifier"]
-
-    def to_json(self, *args, **kwargs):
-        """
-        Convert an instance of this class into a JSON object.
+        >>> c = contributor('b1a63caf-a549-429e-8ed0-44cd5fbb0eeb')
+        >>> c.to_json()
+        '{"type": "contributor", "identifier": "b1a63caf-a549-429e-8ed0-44cd5fbb0eeb"}'
         """
         return json.dumps(self, *args, **kwargs)
 
@@ -339,19 +429,32 @@ class contributor(dict):
 
         raise ValueError("cannot contribute to collaboration due to its structure")
 
-    def validate(self, collaboration): # pylint: disable=R0201,W0621
+    def validate(self, collaboration) -> bool: # pylint: disable=R0201,W0621
         """
-        Validate the certificate within a collaboration obtained from
+        Validate the certificate within a contribution key obtained from
         a recipient by submitting it to the nth.community platform API.
         The :obj:`contributor.encrypt` method automatically invokes this
         method before encrypting a contribution.
+
+        >>> (r, c_a, c_b) = (recipient(), contributor(), contributor())
+        >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
+        >>> key_a = r.generate(w)[c_a.identifier()]
+        >>> c_a.validate(key_a)
+        True
         """
         response = _service("validate", {"collaboration": collaboration})
         return response["validate"]
 
-    def encrypt(self, collaboration, contribution): # pylint: disable=W0621
+    def encrypt(self, collaboration, contribution) -> collaboration: # pylint: disable=W0621
         """
-        Encrypt a data set as a contribution to a collaboration.
+        Encrypt a data set as a contribution to a collaboration. Find an in-context
+        usage example in the documentation for the :obj:`recipient` class.
+
+        >>> (r, c_a, c_b) = (recipient(), contributor(), contributor())
+        >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
+        >>> key_a = r.generate(w)[c_a.identifier()]
+        >>> table_a = [['a'], ['b'], ['c'], ['d']]
+        >>> enc_a = c_a.encrypt(key_a, table_a)
         """
         c = collaboration
 
@@ -373,73 +476,6 @@ class contributor(dict):
                     return contributor._for_summation(c, contribution, material)
 
         raise ValueError("cannot contribute to collaboration due to its structure")
-
-class collaboration(dict):
-    """
-    Base class for tree data structure representing a data collaboration.
-    """
-    @staticmethod
-    def from_json(argument):
-        """
-        Parse a JSON object into an instance of this class.
-        """
-        if isinstance(argument, str):
-            argument = json.loads(argument)
-
-        if argument.get("type") == "operation":
-            arguments = argument.get("arguments")
-            if isinstance(arguments, list):
-                cs = [collaboration.from_json(a) for a in arguments]
-
-            if argument.get("value") == "count":
-                c = count(*cs, _internal=True)
-            elif argument.get("value") == "intersection":
-                c = intersection(*cs, _internal=True)
-            elif argument.get("value") == "summation":
-                c = summation(*cs, _internal=True)
-
-            if "material" in argument:
-                c["material"] = argument["material"]
-            if "certificate" in argument:
-                c["certificate"] = argument["certificate"]
-
-            return c
-
-        if argument.get("type") == "integer" and "contributor" in argument:
-            i = integer(
-                value=argument.get("value"),
-                contributor=contributor.from_json(argument["contributor"]),
-                _internal=True
-            )
-
-            if "public" in argument:
-                i["public"] = argument["public"]
-
-            return i
-
-        if argument.get("type") == "table" and "contributor" in argument:
-            t = table(
-                value=argument.get("value"),
-                limit=argument.get("limit"),
-                contributor=contributor.from_json(argument["contributor"]),
-                _internal=True
-            )
-
-            if "public" in argument:
-                t["public"] = argument["public"]
-
-            return t
-
-        raise ValueError(
-            "supplied JSON string or dictionary does not represent a " + \
-            "collaboration with correct internal structure"
-        )
-
-    def to_json(self, *args, **kwargs):
-        """
-        Convert an instance of this class into a JSON object.
-        """
-        return json.dumps(self, *args, **kwargs)
 
 class count(collaboration):
     """
@@ -540,8 +576,8 @@ class intersection(collaboration):
 
 class integer(collaboration):
     """
-    Collaboration tree node for a contributed integer value within a
-    collaboration tree data structure. Only 32-bit positive integers
+    Collaboration tree leaf node for a contributed integer value within
+    a collaboration tree data structure. Only 32-bit non-negative integers
     are supported.
 
     >>> c = contributor()
@@ -573,10 +609,10 @@ class integer(collaboration):
 
 class table(collaboration):
     """
-    Collaboration tree node for a contributed data table within a
-    collaboration tree data structure. A contributed table must be
-    a list of rows, and each row must a single-element list that
-    contains exactly one string.
+    Collaboration tree leaf node for a contributed data table within a
+    collaboration tree data structure. A contributed table must be a
+    list of rows, and each row must a single-element list that contains
+    exactly one string.
 
     >>> c = contributor()
     >>> w = table(value=[['a'], ['b'], ['c']], contributor=c)
@@ -638,10 +674,18 @@ class table(collaboration):
 
 class ServiceError(RuntimeError): # pylint: disable=C0103
     """
-    Exception the service platform responded to an API request
-    but indicated an error has occurred service-side (due to
-    either an improperly configured service instance or an improper
-    request).
+    Exception indicating that the service platform responded to an API
+    request but indicated an error has occurred service-side (due to either
+    an improperly configured service instance or an improper request).
+
+    >>> (c_a, c_b) = (contributor(), contributor())
+    >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
+    >>> del w["type"]
+    >>> try:
+    ...     recipient().generate(w)
+    ... except ServiceError as e:
+    ...     print(e)
+    service did not return a valid response
     """
 
 def _service(method, request):
@@ -656,12 +700,12 @@ def _service(method, request):
     try:
         response_dict = response.json()
     except: # pragma: no cover
-        raise ServiceError("service did not return a valid response") from None
+        raise ServiceError('service did not return a valid response') from None
 
     if "error" in response_dict:
         raise ServiceError(response_dict['error'])
     if method not in response_dict:
-        raise ServiceError("service did not return a valid response") # pragma: no cover
+        raise ServiceError('service did not return a valid response')
 
     return response_dict
 
