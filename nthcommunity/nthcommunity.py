@@ -17,7 +17,7 @@ import oblivious
 import bcl
 
 # The nth.community service platform API endpoint.
-API_URL = "https://api.nth.community/0.1.0/"
+API_URL = "https://api.nth.community/0.1.1/"
 
 # Upper bounds on table and table field sizes.
 CONTRIBUTION_MAX_TABLE_LENGTH = 1000
@@ -265,7 +265,7 @@ class contributor(dict):
 
     Each of the individual keys in ``id_to_key.values()`` can be delivered
     to their corresponding contributor. Each contributor can then use the
-    key to encrypt their data contribution via the :obj:`contributor.encrypt` 
+    key to encrypt their data contribution via the :obj:`contributor.encrypt`
     method, as shown below.
 
     >>> id_a = c_a.identifier()
