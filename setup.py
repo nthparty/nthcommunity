@@ -19,8 +19,8 @@ setup(
     ],
     license="MIT",
     url="https://github.com/nthparty/nthcommunity",
-    author="Andrei Lapets",
-    author_email="a@lapets.io",
+    author="Nth Party, Ltd.",
+    author_email="team@nthparty.com",
     description="Python API for the nth.community "+\
                 "secure data collaboration platform.",
     long_description=long_description,

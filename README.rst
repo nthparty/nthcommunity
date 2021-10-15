@@ -4,7 +4,11 @@ nthcommunity
 
 Open-source Python library that allows developers to leverage the nth.community service platform and API to implement secure, privacy-preserving data collaborations within their web services and applications.
 
-|readthedocs| |travis| |coveralls|
+|pypi| |readthedocs| |travis| |coveralls|
+
+.. |pypi| image:: https://badge.fury.io/py/nthcommunity.svg
+   :target: https://badge.fury.io/py/nthcommunity
+   :alt: PyPI version and link.
 
 .. |readthedocs| image:: https://readthedocs.org/projects/mr4mp/badge/?version=latest
    :target: https://mr4mp.readthedocs.io/en/latest/?badge=latest
@@ -18,12 +22,20 @@ Open-source Python library that allows developers to leverage the nth.community 
    :target: https://coveralls.io/github/nthparty/nthcommunity?branch=main
    :alt: Coveralls test coverage summary.
 
-Purpose
--------
-This library is a client-side component for the nth.community secure, privacy-preserving data collaboration service platform and API. Together, this library and the nth.community service platform make it possible to define and execute data workflows (called *collaborations*) that operate on encrypted input data without decrypting it. This open-source library supports a very limited set of input data types (non-negative 32-bit integers and single-column tables of strings) and operations (intersection of tables, row count of an intersection of tables, and summation of integers).
+Purpose and Features
+--------------------
+This library is a client-side component and Python API for the nth.community secure, privacy-preserving data collaboration service platform. Together, this library and the nth.community service platform make it possible to define and execute data workflows (called *collaborations*) that operate on encrypted input data without decrypting it.
 
-Package Usage
+This open-source library supports a very limited set of input data types (non-negative 32-bit integers and single-column tables of strings) and operations (intersection of tables, row count of an intersection of tables, and summation of integers). The secure data collaboration workflows enabled by nth.community protect contributor inputs by relying on secure multi-party computation protocols, including `private set intersection <https://en.wikipedia.org/wiki/Private_set_intersection>`_ (via the `oblivious <https://pypi.org/project/oblivious/>`_ library) and `additive secret sharing <https://en.wikipedia.org/wiki/Secret_sharing>`_ (via the `additive <https://pypi.org/project/additive/>`_ library).
+
+Designed to be integrated easily into full-stack web applications, this library organizes secure multi-party computation workflows into a familiar structure that resembles `public-key cryptographic systems <https://en.wikipedia.org/wiki/Public-key_cryptography>`_. In order to improve portability of data and to allow programmers to leverage native Python features, data structures in the library are derived from built-in Python types and can be converted in a straightforward way to and from ubiquitous formats such as JSON.
+
+Package Installation and Usage
 ------------------------------
+The package is available on `PyPI <https://pypi.org/project/nthcommunity/>`_::
+
+    python -m pip install nthcommunity
+
 The library can be imported in the usual ways::
 
     import nthcommunity
@@ -31,7 +43,7 @@ The library can be imported in the usual ways::
 
 Example: Secure Intersection Size
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-A secure, privacy-preserving data collaboration begins when a recipient party is created. This party is responsible for defining the collaboration data workflow, distributing contribution keys to contributors, and performing the computation on the encrypted data contributions in concert with the nth.community service platform. Once the workflow has been fully executed, the recipient receives the result of the overall data workflow::
+A secure, privacy-preserving data collaboration begins when a recipient party is created. This party is responsible for defining the collaboration data workflow, distributing contribution keys to contributors, and performing the computation on the encrypted data contributions in concert with the nth.community service platform::
 
     >>> from nthcommunity import *
     >>> r = recipient()
@@ -71,7 +83,7 @@ Each of these individual keys ``id_to_key[c_a.identifier()]`` and ``id_to_key[c_
                 "type": "contributor",
                 "identifier": "6a8dd844-6003-4475-aea7-b4182400bb90"
               },
-              "public_key": "tdeJzrPIEpsFcykqnlN4M/hiP8gnNAJiSBRysLIutwo="
+              "public": "tdeJzrPIEpsFcykqnlN4M/hiP8gnNAJiSBRysLIutwo="
             }
           ]
         }
@@ -108,7 +120,7 @@ As with contributor keys, encrypted contributions can be converted to and from J
                 "type": "contributor",
                 "identifier": "6a8dd844-6003-4475-aea7-b4182400bb90"
               },
-              "public_key": "tdeJzrPIEpsFcykqnlN4M/hiP8gnNAJiSBRysLIutwo=",
+              "public": "tdeJzrPIEpsFcykqnlN4M/hiP8gnNAJiSBRysLIutwo=",
               "value": [
                 [
                   "0Ch4F9+RVGu+e0dmK+ydFvOZSLld/xMk4xcXX8U2TGY5/CUiwCtPb0bM6nwJrbZPVBIAWa5tgVCGR2Tu8LdfalxDwpGqyNuWPcUtQP8T6P8=",
@@ -137,7 +149,7 @@ As with contributor keys, encrypted contributions can be converted to and from J
 
 Once all the encrypted contributions are received, the recipient can (by again leveraging the nth.community service platform API) execute the workflow on the encrypted contributions to obtain a result::
 
-    >>> result = r.evaluate({c_a["identifier"]: enc_a, c_b["identifier"]: enc_b})
+    >>> result = r.evaluate({c_a.identifier(): enc_a, c_b.identifier(): enc_b})
     >>> result["value"]
     3
 
