@@ -14,8 +14,9 @@ sys.path.append('.')
 
 import nthcommunity # pylint: disable=C0413
 
-# Maximum number of rows in a data set that can be contributed.
-CONTRIBUTION_LENGTH_MAX = 10000
+# Upper bounds on table and table field sizes.
+CONTRIBUTION_MAX_TABLE_LENGTH = 1000
+CONTRIBUTION_MAX_TABLE_ROW_FIELD_LENGTH = 256
 
 def api_exported():
     """
@@ -57,8 +58,8 @@ class Test_nthcommunity(unittest.TestCase):
 
         c = nthcommunity.table(
             value=[
-                []
-                for _ in range(CONTRIBUTION_LENGTH_MAX)
+                ['a']
+                for _ in range(CONTRIBUTION_MAX_TABLE_LENGTH)
             ],
             _internal=True
         )
@@ -69,7 +70,7 @@ class Test_nthcommunity(unittest.TestCase):
             ValueError,
             lambda:\
                 nthcommunity.table(
-                    limit=CONTRIBUTION_LENGTH_MAX + 1
+                    limit=CONTRIBUTION_MAX_TABLE_LENGTH + 1
                 )
         )
 

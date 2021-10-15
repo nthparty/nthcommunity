@@ -14,8 +14,9 @@ import bcl
 # The nth.community service platform API endpoint.
 API_URL = "https://api.nth.community/0.1.0/"
 
-# Maximum number of rows in a data set that can be contributed.
-CONTRIBUTION_LENGTH_MAX = 10000
+# Upper bounds on table and table field sizes.
+CONTRIBUTION_MAX_TABLE_LENGTH = 1000
+CONTRIBUTION_MAX_TABLE_ROW_FIELD_LENGTH = 256
 
 class recipient: # pylint: disable=R0903
     """
@@ -278,10 +279,10 @@ class contributor(dict):
         if c["type"] == "table":
             # Ensure the contribution satisfies the length limit (both
             # the universal one and the one specified in the collaboration).
-            if len(contribution) > c.get("limit", CONTRIBUTION_LENGTH_MAX):
+            if len(contribution) > c.get("limit", CONTRIBUTION_MAX_TABLE_LENGTH):
                 raise ValueError(
                     'contribution length exceeds maximum of ' + \
-                    str(c.get("limit", CONTRIBUTION_LENGTH_MAX))
+                    str(c.get("limit", CONTRIBUTION_MAX_TABLE_LENGTH))
                 )
 
             # Result is a new instance (not in-place modification of existing collaboration).
@@ -449,7 +450,7 @@ class count(collaboration):
     >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
 
     Attempts to apply a count operation to a collaboration workflow that is not
-    compatible with a count operation raises an exception.
+    compatible with a count operation raise an exception.
 
     >>> count(integer(123))
     Traceback (most recent call last):
@@ -480,7 +481,7 @@ class summation(collaboration):
     >>> w = summation(integer(contributor=c_a), integer(contributor=c_b))
 
     Attempts to apply a summation operation to a collaboration workflow that is
-    not compatible with a summation operation raises an exception.
+    not compatible with a summation operation raise an exception.
 
     >>> summation(integer(123))
     Traceback (most recent call last):
@@ -513,7 +514,7 @@ class intersection(collaboration):
     >>> w = intersection(table(contributor=c_a), table(contributor=c_b))
 
     Attempts to apply an intersection operation to a collaboration workflow
-    that is not compatible with an intersection operation raises an exception.
+    that is not compatible with an intersection operation raise an exception.
 
     >>> intersection(table())
     Traceback (most recent call last):
@@ -546,7 +547,7 @@ class integer(collaboration):
     >>> c = contributor()
     >>> w = integer(value=123, contributor=c)
 
-    Attempts to construct an invalid integer contribution raises an exception.
+    Attempts to construct an invalid integer contribution raise an exception.
 
     >>> integer(-123)
     Traceback (most recent call last):
@@ -580,12 +581,21 @@ class table(collaboration):
     >>> c = contributor()
     >>> w = table(value=[['a'], ['b'], ['c']], contributor=c)
 
-    Attempts to construct an invalid table contribution raises an exception.
+    Attempts to construct a table contribution that is invalid or
+    that exceeds the maximum size limits raise an exception.
 
     >>> table(['a', 'b', 'c'])
     Traceback (most recent call last):
       ...
     ValueError: table value must be a list of single-item lists, each containing a string
+    >>> table([['a']] * 1001)
+    Traceback (most recent call last):
+      ...
+    ValueError: table length exceeds maximum of 1000
+    >>> table([['a'  * 257]])
+    Traceback (most recent call last):
+      ...
+    ValueError: table field value length exceeds maximum of 256
     """
     def __init__(
             self, value=None, contributor=None, limit=None, # pylint: disable=W0621
@@ -608,16 +618,21 @@ class table(collaboration):
         if contributor is not None:
             self["contributor"] = contributor
         if limit is not None:
-            if limit > CONTRIBUTION_LENGTH_MAX:
+            if limit > CONTRIBUTION_MAX_TABLE_LENGTH:
                 raise ValueError(
-                    'maximum table length limit is ' + str(CONTRIBUTION_LENGTH_MAX)
+                    'maximum table length limit is ' + str(CONTRIBUTION_MAX_TABLE_LENGTH)
                 )
             self["limit"] = limit
         if value is not None:
-            if len(value) > self.get("limit", CONTRIBUTION_LENGTH_MAX):
+            if len(value) > self.get("limit", CONTRIBUTION_MAX_TABLE_LENGTH):
                 raise ValueError(
                     'table length exceeds maximum of ' + \
-                    str(self.get("limit", CONTRIBUTION_LENGTH_MAX))
+                    str(self.get("limit", CONTRIBUTION_MAX_TABLE_LENGTH))
+                )
+            if any(len(row[0]) > CONTRIBUTION_MAX_TABLE_ROW_FIELD_LENGTH for row in value):
+                raise ValueError(
+                    'table field value length exceeds maximum of ' + \
+                    str(CONTRIBUTION_MAX_TABLE_ROW_FIELD_LENGTH)
                 )
             self["value"] = value
 
