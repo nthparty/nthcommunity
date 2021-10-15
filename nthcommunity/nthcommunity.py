@@ -233,21 +233,21 @@ class contributor(dict):
     @staticmethod
     def _for_summation(collaboration, contribution, material): # pylint: disable=W0621
         """
-        Encrypt a data set as a contribution to a collaboration
+        Encrypt an integer as a contribution to a collaboration
         (or sub-collaboration) that has a `summation` operation node.
         """
         c = collaboration["arguments"][0]
 
-        if "public" in c:
+        if c.get("type") == "integer" and "public" in c:
             # Extract public key to use for encrypting for the service platform.
-            public_key = bcl.public.from_base64(c["public"])
+            public_key_platform = bcl.public.from_base64(c["public"])
 
             # Extract public key to use for encrypting data for the recipient.
             public_key_recipient = bcl.public.from_base64(material["public"])
 
             (value, mask) = additive.shares(contribution) # pylint: disable=W0632
             value_enc = bcl.asymmetric.encrypt(public_key_recipient, value.to_bytes())
-            mask_enc = bcl.asymmetric.encrypt(public_key, mask.to_bytes())
+            mask_enc = bcl.asymmetric.encrypt(public_key_platform, mask.to_bytes())
 
             if c["type"] == "integer":
                 # Update argument collaboration tree with contribution.
@@ -283,11 +283,11 @@ class contributor(dict):
 
             # Result is a new instance (not in-place modification of existing collaboration).
             t = table(contributor=c["contributor"])
-            t["public_key"] = c["public_key"]
+            t["public"] = c["public"]
 
             # Extract public key to use for encrypting the scalar and data
             # for the service platform (vs. the recipient).
-            public_key = bcl.public.from_base64(c["public_key"])
+            public_key_platform = bcl.public.from_base64(c["public"])
 
             # Extract public key to use for encrypting data for the recipient.
             public_key_recipient = bcl.public.from_base64(material["public"])
@@ -296,11 +296,11 @@ class contributor(dict):
             t["value"] = [
                 [
                     bcl.asymmetric.encrypt(
-                        public_key,
+                        public_key_platform,
                         scalar * oblivious.point.hash(bytes([0]) + row[0].encode())
                     ).to_base64(),
                     bcl.asymmetric.encrypt(
-                        public_key,
+                        public_key_platform,
                         bcl.asymmetric.encrypt(
                             public_key_recipient,
                             row[0].encode()
@@ -316,11 +316,11 @@ class contributor(dict):
                 t["value"].extend([
                     [
                         bcl.asymmetric.encrypt(
-                            public_key,
+                            public_key_platform,
                             scalar * oblivious.point.hash(bytes([1]) + secrets.token_bytes(32))
                         ).to_base64(),
                         bcl.asymmetric.encrypt(
-                            public_key,
+                            public_key_platform,
                             bcl.asymmetric.encrypt(
                                 public_key_recipient,
                                 secrets.token_bytes(lengths[i % len(lengths)])
@@ -421,8 +421,8 @@ class collaboration(dict):
                 _internal=True
             )
 
-            if "public_key" in argument:
-                t["public_key"] = argument["public_key"]
+            if "public" in argument:
+                t["public"] = argument["public"]
 
             return t
 
