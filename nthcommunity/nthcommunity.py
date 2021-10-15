@@ -1,6 +1,9 @@
 """
 Python library for the nth.community secure, privacy-preserving
 data collaboration service platform and API.
+
+An end-to-end example is presented in the documentation for the
+:obj:`recipient` class.
 """
 from __future__ import annotations
 from typing import Union
@@ -86,7 +89,7 @@ class collaboration(dict):
             "collaboration with correct internal structure"
         )
 
-    def to_json(self, *args, **kwargs):
+    def to_json(self, *args, **kwargs) -> str:
         """
         Convert an instance of this class into a JSON string. This method
         is a wrapper for the ``json.dumps`` method found in the built-in
@@ -101,12 +104,13 @@ class recipient: # pylint: disable=R0903
     A collaboration begins with a recipient party represented by a
     :obj:`recipient` object. The recipient defines a :obj:`collaboration`
     workflow, generates keys for individual contributors, accepts encrypted
-    contributions, and computes the results in concert with the service
-    platform API.
+    contributions, and computes the results in concert with the nth.community
+    service platform.
 
     >>> r = recipient()
 
-    Individual :obj:`contributor` objects identify individual contributors.
+    Individual :obj:`contributor` objects represent and uniquely identify
+    individual contributors.
 
     >>> c_a = contributor()
     >>> c_b = contributor()
@@ -122,7 +126,7 @@ class recipient: # pylint: disable=R0903
     True
 
     A :obj:`collaboration` is a tree-like data structure that defines how the
-    overall result of the collaboration is computed. The leaf nodes of
+    overall result of the collaboration is computed. Each leaf node of
     the data structure must indicate which contributor must supply the
     encrypted data corresponding to that node. The internal, non-leaf nodes
     represent data operations such as :obj:`count`, :obj:`summation`, and
@@ -130,9 +134,10 @@ class recipient: # pylint: disable=R0903
 
     >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
 
-    The recipient can (in concert the service platform) :obj:`recipient.generate`
-    a dictionary that maps each of the contributor identifiers to their
-    respective contribution key.
+    The recipient can use the :obj:`recipient.generate` method (which internally
+    leverages the nth.community service platform) to create a dictionary that
+    maps each contributor identifier to its respective contribution key *for
+    that specific collaboration workflow*.
 
     >>> id_to_key = r.generate(w)
 
@@ -149,8 +154,12 @@ class recipient: # pylint: disable=R0903
     >>> key_a = collaboration.from_json(key_a_json)
     >>> key_b = collaboration.from_json(key_b_json)
 
-    Each contributor can then :obj:`contributor.encrypt` their
-    data contribution using their key.
+    Each contributor can then use the :obj:`contributor.encrypt` method to
+    encrypt their data contribution using their key. After validating the
+    contribution key, this method *does not perform any external communications*
+    and encrypts the input data *entirely within the host environment belonging
+    to the contributor*. In particular, it does **not** communicate with the
+    nth.community service platform or the recipient during this process.
 
     >>> table_a = [['a'], ['b'], ['c'], ['d']]
     >>> enc_a = c_a.encrypt(key_a, table_a)
@@ -158,8 +167,10 @@ class recipient: # pylint: disable=R0903
     >>> enc_b = c_b.encrypt(key_b, table_b)
 
     Because encrypted contributions are also :obj:`collaboration` objects, they
-    can be easily converted to and from JSON strings. The recipient can then
-    :obj:`recipient.evaluate` the encrypted contributions and obtain a result.
+    can be easily converted to and from JSON strings. The recipient can then use
+    the :obj:`recipient.evaluate` method (which again internally leverages the
+    nth.community service platform) to evaluate the encrypted contributions
+    and obtain a result.
 
     >>> result = r.evaluate({c_a.identifier(): enc_a, c_b.identifier(): enc_b})
     >>> result["value"]
@@ -205,7 +216,7 @@ class recipient: # pylint: disable=R0903
 
     def generate(self, collaboration) -> dict: # pylint: disable=W0621
         """
-        Submit a collaboration via the nth.community platform API to
+        Submit a collaboration via the nth.community service platform API to
         receive the set of contributor keys that can be distributed to
         contributors. Find an in-context usage example in the
         documentation for the :obj:`recipient` class.
@@ -228,9 +239,10 @@ class recipient: # pylint: disable=R0903
 
     def evaluate(self, collaborations) -> collaboration: # pylint: disable=W0621
         """
-        Evaluate a collaboration (represented as a collection of
-        collaborations from contributors) by submitting it to the
-        nth.community platform API. Find an in-context usage example
+        Evaluate a collaboration workflow instantiated with encrypted data
+        contributions (represented as a dictionary that maps each contributor's
+        identifier to that contributor's encrypted contribution) by submitting
+        it to the nth.community service platform. Find an in-context usage example
         in the documentation for the :obj:`recipient` class.
         """
         response = _service("evaluate", {"collaborations": collaborations})
@@ -252,8 +264,9 @@ class contributor(dict):
     >>> id_to_key = r.generate(w)
 
     Each of the individual keys in ``id_to_key.values()`` can be delivered
-    to their corresponding contributor. Each contributor can then use that
-    key to :obj:`contributor.encrypt` their data contribution, as shown below.
+    to their corresponding contributor. Each contributor can then use the
+    key to encrypt their data contribution via the :obj:`contributor.encrypt` 
+    method, as shown below.
 
     >>> id_a = c_a.identifier()
     >>> table_a = [['a'], ['b'], ['c'], ['d']]
@@ -432,7 +445,7 @@ class contributor(dict):
     def validate(self, collaboration) -> bool: # pylint: disable=R0201,W0621
         """
         Validate the certificate within a contribution key obtained from
-        a recipient by submitting it to the nth.community platform API.
+        a recipient by submitting it to the nth.community service platform.
         The :obj:`contributor.encrypt` method automatically invokes this
         method before encrypting a contribution.
 
@@ -455,6 +468,12 @@ class contributor(dict):
         >>> key_a = r.generate(w)[c_a.identifier()]
         >>> table_a = [['a'], ['b'], ['c'], ['d']]
         >>> enc_a = c_a.encrypt(key_a, table_a)
+
+        After validating the contribution key, this method *does not perform any
+        external communications* and encrypts the input data *entirely within the
+        host environment belonging to the contributor*. In particular, it does
+        **not** communicate with the nth.community service platform or the recipient
+        during this process.
         """
         c = collaboration
 
@@ -485,8 +504,8 @@ class count(collaboration):
     >>> (c_a, c_b) = (contributor(), contributor())
     >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
 
-    Attempts to apply a count operation to a collaboration workflow that is not
-    compatible with a count operation raise an exception.
+    Any attempt to apply a count operation to a collaboration workflow that is
+    not compatible with a count operation raises an exception.
 
     >>> count(integer(123))
     Traceback (most recent call last):
@@ -516,8 +535,8 @@ class summation(collaboration):
     >>> (c_a, c_b) = (contributor(), contributor())
     >>> w = summation(integer(contributor=c_a), integer(contributor=c_b))
 
-    Attempts to apply a summation operation to a collaboration workflow that is
-    not compatible with a summation operation raise an exception.
+    Any attempt to apply a summation operation to a collaboration workflow that
+    is not compatible with a summation operation raises an exception.
 
     >>> summation(integer(123))
     Traceback (most recent call last):
@@ -549,8 +568,8 @@ class intersection(collaboration):
     >>> (c_a, c_b) = (contributor(), contributor())
     >>> w = intersection(table(contributor=c_a), table(contributor=c_b))
 
-    Attempts to apply an intersection operation to a collaboration workflow
-    that is not compatible with an intersection operation raise an exception.
+    Any attempt to apply an intersection operation to a collaboration workflow
+    that is not compatible with an intersection operation raises an exception.
 
     >>> intersection(table())
     Traceback (most recent call last):
@@ -583,7 +602,8 @@ class integer(collaboration):
     >>> c = contributor()
     >>> w = integer(value=123, contributor=c)
 
-    Attempts to construct an invalid integer contribution raise an exception.
+    Any attempt to construct an invalid integer contribution raises an
+    exception.
 
     >>> integer(-123)
     Traceback (most recent call last):
@@ -617,8 +637,8 @@ class table(collaboration):
     >>> c = contributor()
     >>> w = table(value=[['a'], ['b'], ['c']], contributor=c)
 
-    Attempts to construct a table contribution that is invalid or
-    that exceeds the maximum size limits raise an exception.
+    Any attempt to construct a data table contribution that is invalid or
+    that exceeds size limits raises an exception.
 
     >>> table(['a', 'b', 'c'])
     Traceback (most recent call last):

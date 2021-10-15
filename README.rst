@@ -58,7 +58,7 @@ Each contributor is assigned a unique identifier when the ``contributor`` object
     >>> c_a.identifier()
     '57728767-55bf-4833-ab36-d3733a0e8448'
 
-A collaboration is a tree-like data structure that defines how the overall result of the of a collaborative data workflow is computed. Every leaf node in the data structure must indicate which contributor must supply the encrypted data corresponding to that node. The internal, non-leaf nodes represent data operations such as ``count``, ``intersection``, and ``summation``. The collaboration workflow defined below computes the size of the intersection between two tables (one from each contributor)::
+A collaboration is a tree-like data structure that defines how the overall result of a collaborative data workflow is computed. Every leaf node in the data structure must indicate which contributor must supply the encrypted data corresponding to that node. The internal, non-leaf nodes represent data operations such as ``count``, ``intersection``, and ``summation``. The collaboration workflow defined below computes the size of the intersection between two tables (one from each contributor)::
 
     >>> w = count(intersection(table(contributor=c_a), table(contributor=c_b)))
 
