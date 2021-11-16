@@ -17,7 +17,7 @@ import oblivious
 import bcl
 
 # The nth.community service platform API endpoint.
-API_URL = "https://api.nth.community/0.1.1/"
+API_URL = "https://api.nth.community/1.0.0/"
 
 # Upper bounds on table and table field sizes.
 CONTRIBUTION_MAX_TABLE_LENGTH = 1000
