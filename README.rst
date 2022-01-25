@@ -4,7 +4,7 @@ nthcommunity
 
 Open-source Python library that allows developers to leverage the nth.community service platform and API to implement secure, privacy-preserving data collaborations within their web services and applications.
 
-|pypi| |readthedocs| |travis| |coveralls|
+|pypi| |readthedocs| |actions| |coveralls|
 
 .. |pypi| image:: https://badge.fury.io/py/nthcommunity.svg
    :target: https://badge.fury.io/py/nthcommunity
@@ -14,9 +14,9 @@ Open-source Python library that allows developers to leverage the nth.community 
    :target: https://mr4mp.readthedocs.io/en/latest/?badge=latest
    :alt: Read the Docs documentation status.
 
-.. |travis| image:: https://app.travis-ci.com/nthparty/nthcommunity.svg?branch=main
-   :target: https://app.travis-ci.com/nthparty/nthcommunity
-   :alt: Travis CI build status.
+.. |actions| image:: https://github.com/nthparty/nthcommunity/workflows/lint-test-cover-docs/badge.svg
+   :target: https://github.com/nthparty/nthcommunity/actions/workflows/lint-test-cover-docs.yml
+   :alt: GitHub Actions status.
 
 .. |coveralls| image:: https://coveralls.io/repos/github/nthparty/nthcommunity/badge.svg?branch=main
    :target: https://coveralls.io/github/nthparty/nthcommunity?branch=main
