@@ -10,8 +10,8 @@ Open-source Python library that allows developers to leverage the nth.community 
    :target: https://badge.fury.io/py/nthcommunity
    :alt: PyPI version and link.
 
-.. |readthedocs| image:: https://readthedocs.org/projects/mr4mp/badge/?version=latest
-   :target: https://mr4mp.readthedocs.io/en/latest/?badge=latest
+.. |readthedocs| image:: https://readthedocs.org/projects/nthcommunity/badge/?version=latest
+   :target: https://nthcommunity.readthedocs.io/en/latest/?badge=latest
    :alt: Read the Docs documentation status.
 
 .. |actions| image:: https://github.com/nthparty/nthcommunity/workflows/lint-test-cover-docs/badge.svg
