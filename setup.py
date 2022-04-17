@@ -12,10 +12,10 @@ setup(
     version=version,
     packages=[name,],
     install_requires=[
-        "requests~=2.26",
-        "oblivious~=4.0",
-        "bcl~=2.0",
-        "additive~=0.1"
+        "requests~=2.27",
+        "oblivious~=5.0",
+        "bcl~=2.1",
+        "additive~=0.3"
     ],
     license="MIT",
     url="https://github.com/nthparty/nthcommunity",
